@@ -34,6 +34,41 @@ function formatTimeLabel(value) {
   return value >= 10 ? `${value.toFixed(0)}s` : `${value.toFixed(1)}s`;
 }
 
+function formatMetricLabel(value) {
+  const absValue = Math.abs(value);
+  if (absValue >= 1000000) {
+    return `${(value / 1000000).toFixed(1)}m`;
+  }
+  if (absValue >= 1000) {
+    return `${(value / 1000).toFixed(1)}k`;
+  }
+  if (absValue >= 100) {
+    return `${value.toFixed(0)}`;
+  }
+  if (absValue >= 10) {
+    return `${value.toFixed(1)}`;
+  }
+  return `${value.toFixed(2)}`;
+}
+
+function drawSeriesPath(ctx, chart, series, visibleWindow, range, frame) {
+  ctx.beginPath();
+  series.values.forEach((value, index) => {
+    if (index < visibleWindow.startIndex || index > visibleWindow.endIndex) {
+      return;
+    }
+    const clampedTime = clamp(chart.timeSec[index], visibleWindow.startTime, visibleWindow.endTime);
+    const x = frame.left + (frame.right - frame.left) * ((clampedTime - visibleWindow.startTime) / visibleWindow.span);
+    const normalized = (value - range.min) / (range.max - range.min || 1);
+    const y = frame.bottom - normalized * (frame.bottom - frame.top);
+    if (index === visibleWindow.startIndex) {
+      ctx.moveTo(x, y);
+    } else {
+      ctx.lineTo(x, y);
+    }
+  });
+}
+
 function getVisibleWindow(timeSec, viewport) {
   const safeViewport = resolveViewport(viewport);
   const totalTime = timeSec[timeSec.length - 1] || 1;
@@ -115,30 +150,27 @@ function renderChart(canvasId, chart, width, height, theme, viewport) {
   const range = findMinMax(visibleSeries);
 
   chart.series.forEach((series) => {
-    ctx.beginPath();
+    ctx.save();
+    ctx.setGlobalAlpha(0.16);
     ctx.setStrokeStyle(series.color);
-    ctx.setLineWidth(2);
-    series.values.forEach((value, index) => {
-      if (index < visibleWindow.startIndex || index > visibleWindow.endIndex) {
-        return;
-      }
-      const clampedTime = clamp(chart.timeSec[index], visibleWindow.startTime, visibleWindow.endTime);
-      const x = frame.left + (frame.right - frame.left) * ((clampedTime - visibleWindow.startTime) / visibleWindow.span);
-      const normalized = (value - range.min) / (range.max - range.min || 1);
-      const y = frame.bottom - normalized * (frame.bottom - frame.top);
-      if (index === visibleWindow.startIndex) {
-        ctx.moveTo(x, y);
-      } else {
-        ctx.lineTo(x, y);
-      }
-    });
+    ctx.setLineWidth(5);
+    drawSeriesPath(ctx, chart, series, visibleWindow, range, frame);
+    ctx.stroke();
+    ctx.restore();
+
+    ctx.setStrokeStyle(series.color);
+    ctx.setLineWidth(2.4);
+    drawSeriesPath(ctx, chart, series, visibleWindow, range, frame);
     ctx.stroke();
   });
 
-  ctx.setFillStyle(theme.textColor);
+  const middleValue = range.min + (range.max - range.min) / 2;
   ctx.setFontSize(12);
-  ctx.fillText(String(range.max.toFixed(0)), 8, frame.top + 4);
-  ctx.fillText(String(range.min.toFixed(0)), 8, frame.bottom + 4);
+  ctx.setFillStyle(theme.tickAccentColor || theme.textColor);
+  ctx.fillText(formatMetricLabel(range.max), 8, frame.top + 4);
+  ctx.setFillStyle(theme.tickColor || theme.textColor);
+  ctx.fillText(formatMetricLabel(middleValue), 8, frame.top + (frame.bottom - frame.top) / 2 + 4);
+  ctx.fillText(formatMetricLabel(range.min), 8, frame.bottom + 4);
   ctx.fillText(formatTimeLabel(visibleWindow.startTime), frame.left - 6, height - 10);
   ctx.fillText(formatTimeLabel(visibleWindow.endTime), frame.right - 32, height - 10);
 

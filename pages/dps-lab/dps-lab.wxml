@@ -1,477 +1,991 @@
-<view class="page-shell {{theme === 'dark' ? 'theme-dark' : 'theme-light'}}" style="padding-top: {{pageTopInsetPx}}px;">
-  <view class="page-backdrop-art" style="transform: translate3d(0, {{portraitArtShiftY}}px, 0) scale({{portraitArtScale}});">
-    <image class="page-backdrop-art-image" src="{{theme === 'dark' ? '/dark.webp' : '/white.webp'}}" mode="aspectFit"></image>
+<view
+  class="page-shell {{theme === 'dark' ? 'theme-dark' : 'theme-light'}}"
+  style="padding-top: {{pageTopInsetPx}}px;"
+>
+  <view
+    class="page-backdrop-art"
+    style="transform: translate3d(0, {{portraitArtShiftY}}px, 0) scale({{portraitArtScale}});"
+  >
+    <image
+      class="page-backdrop-art-image"
+      style="filter: blur({{portraitArtBlurPx}}px) saturate({{portraitArtSaturate}}) brightness({{portraitArtBrightness}}); opacity: {{portraitArtImageOpacity}};"
+      src="{{theme === 'dark' ? '/dark.webp' : '/white.webp'}}"
+      mode="aspectFit"
+    ></image>
+    <view class="page-backdrop-art-blend" style="opacity: {{portraitArtBlendOpacity}};"></view>
   </view>
+  <view
+    class="page-backdrop-art-grid"
+    style="opacity: {{portraitArtGridOpacity}}; background-size: {{pageGridCellPx}}px {{pageGridCellPx}}px; background-position: {{pageGridOffsetPx}}px {{pageGridOffsetPx}}px;"
+  ></view>
   <view class="page-backdrop-shade" style="opacity: {{portraitShadeOpacity}};"></view>
-  <view class="page-content-frost {{theme === 'dark' ? 'page-content-frost-dark' : 'page-content-frost-light'}}" style="opacity: {{portraitFrostOpacity}};"></view>
-  <view class="page-grid"></view>
+  <view
+    class="page-content-frost {{theme === 'dark' ? 'page-content-frost-dark' : 'page-content-frost-light'}}"
+    style="opacity: {{portraitFrostOpacity}};"
+  ></view>
+  <view
+    class="page-grid"
+    style="background-size: {{pageGridCellPx}}px {{pageGridCellPx}}px; background-position: {{pageGridOffsetPx}}px {{pageGridOffsetPx}}px;"
+  ></view>
   <view class="page-glow glow-left"></view>
   <view class="page-glow glow-right"></view>
   <view class="page-glow glow-bottom"></view>
   <view class="page-orbit orbit-one"></view>
   <view class="page-orbit orbit-two"></view>
-
-  <view class="page-content" style="transform: translate3d(0, {{scrollShiftY}}px, 0) scaleY({{scrollScaleY}});">
-
-  <view class="portrait-stage-shell" style="height: {{portraitStageHeightPx}}px;" catchtouchstart="onPortraitRevealStart" catchtouchmove="onPortraitRevealMove" catchtouchend="onPortraitRevealEnd" catchtouchcancel="onPortraitRevealEnd">
-    <view class="portrait-stage-copy">
-      <text class="portrait-stage-kicker">ARTINX LABORATORY</text>
-      <text class="portrait-stage-title">ASPIRATION OVER RESULTS</text>
-      <text class="portrait-stage-subtitle"></text>
-    </view>
-    <view class="portrait-stage-handle" style="top: {{portraitHandleTopPx}}px;">
+  <view
+    class="floating-stage-title {{showFloatingStageTitle ? 'floating-stage-title-visible' : ''}}"
+    style="top: {{floatingStageTitleTopPx}}px;"
+  >
+    <text class="floating-stage-copy">     大 道 至 简  匠 心 至 臻</text>
+  </view>
+  <view
+    wx:if="{{portraitRevealProgress > 0.04}}"
+    class="floating-reveal-handle"
+    catchtouchstart="onPortraitRevealStart"
+    catchtouchmove="onPortraitRevealMove"
+    catchtouchend="onPortraitRevealEnd"
+    catchtouchcancel="onPortraitRevealEnd"
+  >
+    <view class="hero-reveal-bridge floating-reveal-bridge">
       <view class="portrait-stage-handle-bar"></view>
       <text class="portrait-stage-handle-text">{{portraitRevealHint}}</text>
     </view>
   </view>
 
-  <view class="hero-card">
-    <view class="hero-top">
-      <view class="hero-brand">
-        <image class="hero-logo" src="{{theme === 'dark' ? darkLogo : lightLogo}}" mode="aspectFit" bindtap="onLogoTap" hover-class="tap-bounce-active" hover-stay-time="90"></image>
-        <view class="hero-texts">
-          <text class="hero-eyebrow">ARTINX RM DPS CALCULATOR</text>
-          <text class="hero-title">RM DPS 计算器</text>
+  <view
+    class="page-content"
+    style="transform: translate3d(0, {{scrollShiftY}}px, 0) scaleY({{scrollScaleY}});"
+  >
+    <view
+      class="portrait-stage-shell"
+      style="height: {{portraitStageHeightPx}}px;"
+      catchtouchstart="onPortraitRevealStart"
+      catchtouchmove="onPortraitRevealMove"
+      catchtouchend="onPortraitRevealEnd"
+      catchtouchcancel="onPortraitRevealEnd"
+    >
+      <view class="portrait-stage-copy portrait-stage-copy-standalone">
+        <text class="portrait-stage-title">大 道 至 简  匠 心 至 臻</text>
+      </view>
+    </view>
+
+    <view class="hero-card">
+      <view class="hero-top">
+        <view class="hero-brand">
+          <image
+            class="hero-logo"
+            src="{{theme === 'dark' ? darkLogo : lightLogo}}"
+            mode="aspectFit"
+            bindtap="onLogoTap"
+            hover-class="tap-bounce-active"
+            hover-stay-time="90"
+          ></image>
+          <view class="hero-texts">
+            <view
+              class="hero-reveal-bridge-shell hero-reveal-bridge-shell-inline"
+              catchtouchstart="onPortraitRevealStart"
+              catchtouchmove="onPortraitRevealMove"
+              catchtouchend="onPortraitRevealEnd"
+              catchtouchcancel="onPortraitRevealEnd"
+            >
+              <view class="hero-reveal-bridge">
+                <view class="portrait-stage-handle-bar"></view>
+                <text class="portrait-stage-handle-text">{{portraitRevealHint}}</text>
+              </view>
+            </view>
+            <text class="hero-eyebrow">RoboMaster DAMAGE</text>
+            <text class="hero-title">CALCULATOR</text>
+          </view>
+        </view>
+        <view
+          class="theme-switch"
+          bindtap="onToggleTheme"
+          hover-class="tap-bounce-active"
+          hover-stay-time="90"
+          >{{theme === 'dark' ? '霓虹' : '极昼'}}</view
+        >
+      </view>
+      <view class="hero-tags">
+        <text class="hero-tag">Powered By ARTINX</text>
+      </view>
+    </view>
+
+    <view class="panel-card compact">
+      <view class="panel-header">
+        <view class="panel-heading-inline">
+          <text class="panel-kicker">ATTACKER</text>
+          <text class="panel-title panel-title-inline">攻击方</text>
         </view>
       </view>
-      <view class="theme-switch" bindtap="onToggleTheme" hover-class="tap-bounce-active" hover-stay-time="90">{{theme === 'dark' ? '黑夜' : '白天'}}</view>
-    </view>
-    <view class="hero-tags">
-      <text class="hero-tag">多种单位</text>
-      <text class="hero-tag">功能完整</text>
-      <text class="hero-tag">实时更新</text>
-    </view>
-    <view class="hero-actions">
-      <view class="hero-button primary" bindtap="onAnalyzeTap" hover-class="tap-bounce-active" hover-stay-time="90">伤害计算</view>
-      <view class="hero-button" bindtap="onResetTap" hover-class="tap-bounce-active" hover-stay-time="90">恢复默认</view>
-    </view>
-  </view>
-
-  <view class="panel-card compact">
-    <view class="panel-header">
-      <view class="panel-heading-inline">
-        <text class="panel-kicker">ATTACKER</text>
-        <text class="panel-title panel-title-inline">攻击方</text>
-      </view>
-    </view>
-    <view class="field-grid">
-      <view class="field-row">
+      <view class="field-grid">
         <view class="field-item field-item-half">
           <text class="field-label">攻方</text>
-          <picker mode="selector" range="{{attackerRoleOptions}}" range-key="label" value="{{attackerRoleIndex}}" bindchange="onAttackerRoleChange">
+          <picker
+            mode="selector"
+            range="{{attackerRoleOptions}}"
+            range-key="label"
+            value="{{attackerRoleIndex}}"
+            bindchange="onAttackerRoleChange"
+          >
             <view class="picker-value">{{attackerRoleOptions[attackerRoleIndex].label}}</view>
           </picker>
         </view>
         <view class="field-item field-item-half" wx:if="{{showAttackerProfile}}">
           <text class="field-label">配置</text>
-          <picker mode="selector" range="{{attackerProfileOptions}}" range-key="label" value="{{attackerProfileIndex}}" bindchange="onAttackerProfileChange">
+          <picker
+            mode="selector"
+            range="{{attackerProfileOptions}}"
+            range-key="label"
+            value="{{attackerProfileIndex}}"
+            bindchange="onAttackerProfileChange"
+          >
             <view class="picker-value">{{attackerProfileOptions[attackerProfileIndex].label}}</view>
           </picker>
         </view>
         <view class="field-item field-item-half" wx:elif="{{showAttackerPosture}}">
           <text class="field-label">姿态</text>
-          <picker mode="selector" range="{{attackerPostureOptions}}" range-key="label" value="{{attackerPostureIndex}}" bindchange="onAttackerPostureChange">
+          <picker
+            mode="selector"
+            range="{{attackerPostureOptions}}"
+            range-key="label"
+            value="{{attackerPostureIndex}}"
+            bindchange="onAttackerPostureChange"
+          >
             <view class="picker-value">{{attackerPostureOptions[attackerPostureIndex].label}}</view>
           </picker>
         </view>
-        <view class="field-item field-item-half field-item-placeholder" wx:else></view>
-      </view>
-      <view class="field-row" wx:if="{{showAttackerLevel || (showAttackerProfile && showAttackerPosture)}}">
         <view class="field-item field-item-half" wx:if="{{showAttackerLevel}}">
           <text class="field-label">等级</text>
-          <picker mode="selector" range="{{attackerLevelOptions}}" range-key="label" value="{{attackerLevelIndex}}" bindchange="onAttackerLevelChange">
+          <picker
+            mode="selector"
+            range="{{attackerLevelOptions}}"
+            range-key="label"
+            value="{{attackerLevelIndex}}"
+            bindchange="onAttackerLevelChange"
+          >
             <view class="picker-value">{{attackerLevelOptions[attackerLevelIndex].label}}</view>
           </picker>
         </view>
-        <view class="field-item field-item-half field-item-placeholder" wx:else></view>
-        <view class="field-item field-item-half" wx:if="{{showAttackerProfile && showAttackerPosture}}">
+        <view
+          class="field-item field-item-half"
+          wx:if="{{showAttackerProfile && showAttackerPosture}}"
+        >
           <text class="field-label">姿态</text>
-          <picker mode="selector" range="{{attackerPostureOptions}}" range-key="label" value="{{attackerPostureIndex}}" bindchange="onAttackerPostureChange">
+          <picker
+            mode="selector"
+            range="{{attackerPostureOptions}}"
+            range-key="label"
+            value="{{attackerPostureIndex}}"
+            bindchange="onAttackerPostureChange"
+          >
             <view class="picker-value">{{attackerPostureOptions[attackerPostureIndex].label}}</view>
           </picker>
         </view>
-        <view class="field-item field-item-half field-item-placeholder" wx:else></view>
-      </view>
-      <view class="field-item full-span control-cluster">
-        <view class="mini-slider">
-          <text class="mini-label">分析时长</text>
-          <view class="mini-value-input">
-            <input class="slider-input" type="digit" value="{{form.durationSec}}" bindblur="onDurationInputCommit" bindconfirm="onDurationInputCommit" />
-            <text class="slider-input-suffix">s</text>
+        <view class="field-item full-span control-cluster">
+          <view class="mini-slider">
+            <text class="mini-label">分析时长</text>
+            <view class="mini-value-input">
+              <input
+                class="slider-input"
+                type="digit"
+                value="{{form.durationSec}}"
+                bindblur="onDurationInputCommit"
+                bindconfirm="onDurationInputCommit"
+              />
+              <text class="slider-input-suffix">s</text>
+            </view>
+          </view>
+          <view class="control-slider-shell shell-duration">
+            <view class="control-slider-rail"></view>
+            <slider
+              class="control-slider slider-duration"
+              min="15"
+              max="240"
+              step="5"
+              block-size="26"
+              block-color="#ffffff"
+              value="{{form.durationSec}}"
+              activeColor="rgba(0, 0, 0, 0)"
+              backgroundColor="rgba(0, 0, 0, 0)"
+              bindchange="onDurationChange"
+            />
+          </view>
+          <view class="mini-slider top-gap">
+            <text class="mini-label">请求射速</text>
+            <view class="mini-value-input">
+              <input
+                class="slider-input"
+                type="digit"
+                value="{{form.requestedFireRateHz}}"
+                bindblur="onFireRateInputCommit"
+                bindconfirm="onFireRateInputCommit"
+              />
+              <text class="slider-input-suffix">Hz</text>
+            </view>
+          </view>
+          <view class="control-slider-shell shell-fire">
+            <view class="control-slider-rail"></view>
+            <slider
+              class="control-slider slider-fire"
+              min="0"
+              max="30"
+              step="0.5"
+              block-size="30"
+              block-color="#ffffff"
+              value="{{form.requestedFireRateHz}}"
+              activeColor="rgba(0, 0, 0, 0)"
+              backgroundColor="rgba(0, 0, 0, 0)"
+              bindchange="onFireRateChange"
+            />
+          </view>
+          <view class="mini-slider top-gap">
+            <text class="mini-label">命中率</text>
+            <view class="mini-value-input">
+              <input
+                class="slider-input"
+                type="digit"
+                value="{{form.hitRatePercent}}"
+                bindblur="onHitRateInputCommit"
+                bindconfirm="onHitRateInputCommit"
+              />
+              <text class="slider-input-suffix">%</text>
+            </view>
+          </view>
+          <view class="control-slider-shell shell-hit">
+            <view class="control-slider-rail"></view>
+            <slider
+              class="control-slider slider-hit"
+              min="0"
+              max="100"
+              step="5"
+              block-size="24"
+              block-color="#ffffff"
+              value="{{form.hitRatePercent}}"
+              activeColor="rgba(0, 0, 0, 0)"
+              backgroundColor="rgba(0, 0, 0, 0)"
+              bindchange="onHitRateChange"
+            />
+          </view>
+          <view class="mini-slider top-gap">
+            <text class="mini-label">初始热量</text>
+            <view class="mini-value-input">
+              <input
+                class="slider-input"
+                type="digit"
+                value="{{form.initialHeat}}"
+                bindblur="onHeatInputCommit"
+                bindconfirm="onHeatInputCommit"
+              />
+              <text class="slider-input-suffix"> </text>
+            </view>
+          </view>
+          <view class="control-slider-shell shell-heat">
+            <view class="control-slider-rail"></view>
+            <slider
+              class="control-slider slider-heat"
+              min="0"
+              max="300"
+              step="10"
+              block-size="24"
+              block-color="#ffffff"
+              value="{{form.initialHeat}}"
+              activeColor="rgba(0, 0, 0, 0)"
+              backgroundColor="rgba(0, 0, 0, 0)"
+              bindchange="onHeatChange"
+            />
           </view>
         </view>
-        <view class="control-slider-shell shell-duration">
-          <view class="control-slider-rail"></view>
-          <slider class="control-slider slider-duration" min="15" max="240" step="5" block-size="24" block-color="#ffffff" value="{{form.durationSec}}" activeColor="#c2ff12" backgroundColor="rgba(0, 0, 0, 0)" bindchange="onDurationChange" />
+        <view class="field-item full-span field-note">
+          <text>{{analysis.attacker.resolved.note}}</text>
         </view>
-        <view class="mini-slider top-gap">
-          <text class="mini-label">请求射速</text>
-          <view class="mini-value-input">
-            <input class="slider-input" type="digit" value="{{form.requestedFireRateHz}}" bindblur="onFireRateInputCommit" bindconfirm="onFireRateInputCommit" />
-            <text class="slider-input-suffix">Hz</text>
-          </view>
-        </view>
-        <view class="control-slider-shell shell-fire">
-          <view class="control-slider-rail"></view>
-          <slider class="control-slider slider-fire" min="0" max="30" step="0.5" block-size="24" block-color="#ffffff" value="{{form.requestedFireRateHz}}" activeColor="#8e4cff" backgroundColor="rgba(0, 0, 0, 0)" bindchange="onFireRateChange" />
-        </view>
-        <view class="mini-slider top-gap">
-          <text class="mini-label">命中率</text>
-          <view class="mini-value-input">
-            <input class="slider-input" type="digit" value="{{form.hitRatePercent}}" bindblur="onHitRateInputCommit" bindconfirm="onHitRateInputCommit" />
-            <text class="slider-input-suffix">%</text>
-          </view>
-        </view>
-        <view class="control-slider-shell shell-hit">
-          <view class="control-slider-rail"></view>
-          <slider class="control-slider slider-hit" min="0" max="100" step="5" block-size="24" block-color="#ffffff" value="{{form.hitRatePercent}}" activeColor="#c2ff12" backgroundColor="rgba(0, 0, 0, 0)" bindchange="onHitRateChange" />
-        </view>
-        <view class="mini-slider top-gap">
-          <text class="mini-label">初始热量</text>
-          <view class="mini-value-input">
-            <input class="slider-input" type="digit" value="{{form.initialHeat}}" bindblur="onHeatInputCommit" bindconfirm="onHeatInputCommit" />
-            <text class="slider-input-suffix"> </text>
-          </view>
-        </view>
-        <view class="control-slider-shell shell-heat">
-          <view class="control-slider-rail"></view>
-          <slider class="control-slider slider-heat" min="0" max="300" step="10" block-size="24" block-color="#ffffff" value="{{form.initialHeat}}" activeColor="#8e4cff" backgroundColor="rgba(0, 0, 0, 0)" bindchange="onHeatChange" />
-        </view>
-      </view>
-      <view class="field-item full-span field-note">
-        <text>{{analysis.attacker.resolved.note}}</text>
       </view>
     </view>
-  </view>
 
-  <view class="panel-card compact">
-    <view class="panel-header">
-      <view class="panel-heading-inline">
-        <text class="panel-kicker">TARGET</text>
-        <text class="panel-title panel-title-inline">受击方</text>
+    <view class="panel-card compact">
+      <view class="panel-header">
+        <view class="panel-heading-inline">
+          <text class="panel-kicker">TARGET</text>
+          <text class="panel-title panel-title-inline">受击方</text>
+        </view>
       </view>
-    </view>
-    <view class="field-grid">
-      <view class="field-row">
+      <view class="field-grid">
         <view class="field-item field-item-half">
           <text class="field-label">单位</text>
-          <picker mode="selector" range="{{targetRoleOptions}}" range-key="label" value="{{targetRoleIndex}}" bindchange="onTargetRoleChange">
+          <picker
+            mode="selector"
+            range="{{targetRoleOptions}}"
+            range-key="label"
+            value="{{targetRoleIndex}}"
+            bindchange="onTargetRoleChange"
+          >
             <view class="picker-value">{{targetRoleOptions[targetRoleIndex].label}}</view>
           </picker>
         </view>
         <view class="field-item field-item-half" wx:if="{{showTargetProfile}}">
           <text class="field-label">配置</text>
-          <picker mode="selector" range="{{targetProfileOptions}}" range-key="label" value="{{targetProfileIndex}}" bindchange="onTargetProfileChange">
+          <picker
+            mode="selector"
+            range="{{targetProfileOptions}}"
+            range-key="label"
+            value="{{targetProfileIndex}}"
+            bindchange="onTargetProfileChange"
+          >
             <view class="picker-value">{{targetProfileOptions[targetProfileIndex].label}}</view>
           </picker>
         </view>
         <view class="field-item field-item-half" wx:elif="{{showTargetPosture}}">
           <text class="field-label">姿态</text>
-          <picker mode="selector" range="{{targetPostureOptions}}" range-key="label" value="{{targetPostureIndex}}" bindchange="onTargetPostureChange">
+          <picker
+            mode="selector"
+            range="{{targetPostureOptions}}"
+            range-key="label"
+            value="{{targetPostureIndex}}"
+            bindchange="onTargetPostureChange"
+          >
             <view class="picker-value">{{targetPostureOptions[targetPostureIndex].label}}</view>
           </picker>
         </view>
-        <view class="field-item field-item-half field-item-placeholder" wx:else></view>
-      </view>
-      <view class="field-row" wx:if="{{showTargetLevel || (showTargetProfile && showTargetPosture)}}">
         <view class="field-item field-item-half" wx:if="{{showTargetLevel}}">
           <text class="field-label">等级</text>
-          <picker mode="selector" range="{{targetLevelOptions}}" range-key="label" value="{{targetLevelIndex}}" bindchange="onTargetLevelChange">
+          <picker
+            mode="selector"
+            range="{{targetLevelOptions}}"
+            range-key="label"
+            value="{{targetLevelIndex}}"
+            bindchange="onTargetLevelChange"
+          >
             <view class="picker-value">{{targetLevelOptions[targetLevelIndex].label}}</view>
           </picker>
         </view>
-        <view class="field-item field-item-half field-item-placeholder" wx:else></view>
         <view class="field-item field-item-half" wx:if="{{showTargetProfile && showTargetPosture}}">
           <text class="field-label">姿态</text>
-          <picker mode="selector" range="{{targetPostureOptions}}" range-key="label" value="{{targetPostureIndex}}" bindchange="onTargetPostureChange">
+          <picker
+            mode="selector"
+            range="{{targetPostureOptions}}"
+            range-key="label"
+            value="{{targetPostureIndex}}"
+            bindchange="onTargetPostureChange"
+          >
             <view class="picker-value">{{targetPostureOptions[targetPostureIndex].label}}</view>
           </picker>
         </view>
-        <view class="field-item field-item-half field-item-placeholder" wx:else></view>
-      </view>
-      <view class="field-row">
         <view class="field-item field-item-half">
           <text class="field-label">受击部位</text>
-          <picker mode="selector" range="{{targetPartOptions}}" range-key="label" value="{{targetPartIndex}}" bindchange="onTargetPartChange">
+          <picker
+            mode="selector"
+            range="{{targetPartOptions}}"
+            range-key="label"
+            value="{{targetPartIndex}}"
+            bindchange="onTargetPartChange"
+          >
             <view class="picker-value">{{targetPartOptions[targetPartIndex].label}}</view>
           </picker>
         </view>
-        <view class="field-item field-item-half">
+        <view class="field-item field-item-half target-health-field">
           <text class="field-label">当前血量</text>
-          <text class="picker-value">{{analysis.resolved.currentTargetHealth}} / {{analysis.resolved.maxTargetHealth}}</text>
-        </view>
-      </view>
-      <view class="field-item full-span control-cluster" wx:if="{{showOutpostWindowControl}}">
-        <view class="mini-slider">
-          <text class="mini-label">前哨可攻击窗口</text>
-          <view class="mini-value-input">
-            <input class="slider-input" type="digit" value="{{form.targetWindowDegrees}}" bindblur="onOutpostWindowInputCommit" bindconfirm="onOutpostWindowInputCommit" />
-            <text class="slider-input-suffix">deg</text>
+          <text class="picker-value target-health-value"
+            >{{analysis.resolved.currentTargetHealth}} / {{analysis.resolved.maxTargetHealth}}</text
+          >
+          <view class="target-health-inline-shell">
+            <view class="slider-wrap-rail target-health-inline-rail"></view>
+            <slider
+              class="target-health-inline-slider"
+              min="0"
+              max="100"
+              step="5"
+              block-size="28"
+              block-color="#f5f7ff"
+              value="{{form.targetHealthPercent}}"
+              activeColor="rgba(0, 0, 0, 0)"
+              backgroundColor="rgba(0, 0, 0, 0)"
+              bindchange="onTargetHealthChange"
+            />
+          </view>
+          <view class="range-labels target-health-inline-labels">
+            <text>0 血</text>
+            <text>满血</text>
           </view>
         </view>
-        <view class="control-slider-shell shell-window">
-          <view class="control-slider-rail"></view>
-          <slider class="control-slider slider-window" min="0" max="360" step="5" block-size="24" block-color="#ffffff" value="{{form.targetWindowDegrees}}" activeColor="#ffffff" backgroundColor="rgba(0, 0, 0, 0)" bindchange="onOutpostWindowChange" />
-        </view>
-        <view class="range-labels">
-          <text>0°</text>
-          <text>窗口折算 {{analysis.resolved.outpostWindowRatioText}}</text>
-          <text>360°</text>
-        </view>
-      </view>
-      <view class="field-item full-span slider-wrap">
-        <slider min="0" max="100" step="5" value="{{form.targetHealthPercent}}" activeColor="#c2ff12" backgroundColor="rgba(255, 255, 255, 0.10)" bindchange="onTargetHealthChange" />
-        <view class="range-labels">
-          <text>0 血</text>
-          <text>满血</text>
-        </view>
-      </view>
-      <view class="field-item full-span field-note">
-        <text>{{analysis.target.resolved.note}}</text>
-      </view>
-    </view>
-  </view>
-
-  <view class="panel-card compact">
-    <view class="panel-header">
-      <view class="panel-heading-inline">
-        <text class="panel-kicker">BUFFS / DEBUFFS</text>
-        <text class="panel-title panel-title-inline">增益 / 减益</text>
-      </view>
-    </view>
-    <text class="section-label">攻击方状态</text>
-    <view class="effect-grid">
-      <view class="effect-row" wx:for="{{attackerEffectRows}}" wx:key="rowIndex" wx:for-index="rowIndex" wx:for-item="row">
-        <view class="effect-card {{effect.active ? 'effect-active' : ''}}" wx:for="{{row}}" wx:key="key" wx:for-item="effect" data-key="{{effect.key}}" bindtap="onToggleAttackerEffect" hover-class="effect-card-hover" hover-stay-time="80">
-          <view wx:if="{{effect.active}}" class="effect-selected-indicator">已选中</view>
-          <view class="effect-top">
-            <text class="effect-title">{{effect.label}}</text>
-            <text class="effect-pill effect-pill-{{effect.tone}}">{{effect.category}}</text>
-          </view>
-          <picker wx:if="{{effect.active && effect.hasVariants}}" mode="selector" range="{{effect.variantOptions}}" range-key="label" value="{{effect.variantIndex}}" data-side="attacker" data-effect-key="{{effect.key}}" bindchange="onEffectVariantChange" catchtap="onPickerTap">
-            <view class="timeline-picker effect-picker-inline">{{effect.variantLabel || '选择地形'}}</view>
-          </picker>
-          <picker wx:if="{{effect.active && effect.hasDurationOptions}}" mode="selector" range="{{effect.durationOptions}}" range-key="label" value="{{effect.durationIndex}}" data-side="attacker" data-effect-key="{{effect.key}}" bindchange="onEffectDurationChange" catchtap="onPickerTap">
-            <view class="timeline-picker effect-picker-inline">{{effect.durationLabel || '选择激活灯臂'}}</view>
-          </picker>
-          <text class="effect-meta" wx:if="{{effect.active && (effect.variantLabel || effect.durationLabel)}}">{{effect.variantLabel}}{{effect.variantLabel && effect.durationLabel ? ' · ' : ''}}{{effect.durationLabel}}{{effect.timingText ? ' · ' : ''}}{{effect.timingText}}</text>
-          <view class="effect-badge-row" wx:if="{{effect.badges.length}}">
-            <text class="effect-badge effect-badge-{{badge.tone}}" wx:for="{{effect.badges}}" wx:key="text" wx:for-item="badge">{{badge.text}}</text>
-          </view>
-          <text class="effect-copy">{{effect.description}}</text>
-        </view>
-      </view>
-    </view>
-    <text class="section-label section-gap">受击方状态</text>
-    <view class="effect-grid">
-      <view class="effect-row" wx:for="{{targetEffectRows}}" wx:key="rowIndex" wx:for-index="rowIndex" wx:for-item="row">
-        <view class="effect-card {{effect.active ? 'effect-active target-active' : ''}}" wx:for="{{row}}" wx:key="key" wx:for-item="effect" data-key="{{effect.key}}" bindtap="onToggleTargetEffect" hover-class="effect-card-hover" hover-stay-time="80">
-          <view wx:if="{{effect.active}}" class="effect-selected-indicator target-indicator">已选中</view>
-          <view class="effect-top">
-            <text class="effect-title">{{effect.label}}</text>
-            <text class="effect-pill effect-pill-{{effect.tone}}">{{effect.category}}</text>
-          </view>
-          <picker wx:if="{{effect.active && effect.hasVariants}}" mode="selector" range="{{effect.variantOptions}}" range-key="label" value="{{effect.variantIndex}}" data-side="target" data-effect-key="{{effect.key}}" bindchange="onEffectVariantChange" catchtap="onPickerTap">
-            <view class="timeline-picker effect-picker-inline">{{effect.variantLabel || '选择地形'}}</view>
-          </picker>
-          <picker wx:if="{{effect.active && effect.hasDurationOptions}}" mode="selector" range="{{effect.durationOptions}}" range-key="label" value="{{effect.durationIndex}}" data-side="target" data-effect-key="{{effect.key}}" bindchange="onEffectDurationChange" catchtap="onPickerTap">
-            <view class="timeline-picker effect-picker-inline">{{effect.durationLabel || '选择激活灯臂'}}</view>
-          </picker>
-          <text class="effect-meta" wx:if="{{effect.active && (effect.variantLabel || effect.durationLabel)}}">{{effect.variantLabel}}{{effect.variantLabel && effect.durationLabel ? ' · ' : ''}}{{effect.durationLabel}}{{effect.timingText ? ' · ' : ''}}{{effect.timingText}}</text>
-          <view class="effect-badge-row" wx:if="{{effect.badges.length}}">
-            <text class="effect-badge effect-badge-{{badge.tone}}" wx:for="{{effect.badges}}" wx:key="text" wx:for-item="badge">{{badge.text}}</text>
-          </view>
-          <text class="effect-copy">{{effect.description}}</text>
-        </view>
-      </view>
-    </view>
-  </view>
-
-  <view class="panel-card compact">
-    <view class="panel-header align-center">
-      <view class="panel-heading-inline">
-        <text class="panel-kicker">TIMELINE</text>
-        <text class="panel-title panel-title-inline">出伤进程</text>
-      </view>
-    </view>
-    <text class="section-label">攻击方轨道</text>
-    <view wx:if="{{attackerTimelineTracks.length}}" class="timeline-board">
-      <view class="timeline-axis">
-        <text>{{timelineRangeStartLabel}}</text>
-        <text>{{timelineRangeEndLabel}}</text>
-      </view>
-      <view class="timeline-row" wx:for="{{attackerTimelineTracks}}" wx:key="effectKey">
-        <view class="timeline-row-head">
-          <text class="effect-title">{{item.label}}</text>
-          <text class="effect-pill effect-pill-{{item.tone}}">{{item.category}}</text>
-        </view>
-        <picker wx:if="{{item.hasVariants}}" mode="selector" range="{{item.variantOptions}}" range-key="label" value="{{item.variantIndex}}" data-side="attacker" data-effect-key="{{item.effectKey}}" bindchange="onEffectVariantChange">
-          <view class="timeline-picker">{{item.variantLabel}}</view>
-        </picker>
-        <picker wx:if="{{item.hasDurationOptions}}" mode="selector" range="{{item.durationOptions}}" range-key="label" value="{{item.durationIndex}}" data-side="attacker" data-effect-key="{{item.effectKey}}" bindchange="onEffectDurationChange">
-          <view class="timeline-picker">{{item.durationLabel || '选择激活灯臂'}}</view>
-        </picker>
-        <text wx:if="{{!item.hasVariants && !item.hasDurationOptions}}" class="effect-meta">{{item.description}}</text>
-        <text class="effect-meta">{{item.variantLabel}}{{item.variantLabel && item.durationLabel ? ' · ' : ''}}{{item.durationLabel}}{{(item.variantLabel || item.durationLabel) ? ' · ' : ''}}持续 {{item.durationSec}}s，可直接拖动调整开始时间</text>
-        <view id="timeline-track-attacker-{{item.effectKey}}" class="timeline-track-bar timeline-track-bar-large">
-          <view class="timeline-sim-window" style="left: {{simulationStartPercent}}%; width: {{simulationSpanPercent}}%;"></view>
-          <view class="timeline-track-fill timeline-track-fill-draggable {{activeTimelineTrackId === item.effectKey && activeTimelineTrackSide === 'attacker' ? 'timeline-track-active' : ''}}" style="left: {{item.startPercent}}%; width: {{item.spanPercent}}%;" data-side="attacker" data-effect-key="{{item.effectKey}}" catchtouchstart="onTimelineDragStart" catchtouchmove="onTimelineDragMove" catchtouchend="onTimelineDragEnd" catchtouchcancel="onTimelineDragEnd">
-            <view class="timeline-track-segments">
-              <view wx:if="{{item.hasPreSimSegment}}" class="timeline-track-segment timeline-track-segment-pre" style="width: {{item.preSimPercent}}%;"></view>
-              <view class="timeline-track-segment timeline-track-segment-main" style="left: {{item.simOffsetPercent}}%; width: {{item.simPercent}}%;"></view>
-              <view wx:if="{{item.hasPostSimSegment}}" class="timeline-track-segment timeline-track-segment-post" style="left: {{item.postSimOffsetPercent}}%; width: {{item.postSimPercent}}%;"></view>
+        <view class="field-item full-span control-cluster" wx:if="{{showOutpostWindowControl}}">
+          <view class="mini-slider">
+            <text class="mini-label">前哨可攻击窗口</text>
+            <view class="mini-value-input">
+              <input
+                class="slider-input"
+                type="digit"
+                value="{{form.targetWindowDegrees}}"
+                bindblur="onOutpostWindowInputCommit"
+                bindconfirm="onOutpostWindowInputCommit"
+              />
+              <text class="slider-input-suffix">deg</text>
             </view>
-            <view class="timeline-track-handle"></view>
+          </view>
+          <view class="control-slider-shell shell-window">
+            <view class="control-slider-rail"></view>
+            <slider
+              class="control-slider slider-window"
+              min="0"
+              max="360"
+              step="5"
+              block-size="24"
+              block-color="#ffffff"
+              value="{{form.targetWindowDegrees}}"
+              activeColor="rgba(0, 0, 0, 0)"
+              backgroundColor="rgba(0, 0, 0, 0)"
+              bindchange="onOutpostWindowChange"
+            />
+          </view>
+          <view class="range-labels">
+            <text>0°</text>
+            <text>窗口折算 {{analysis.resolved.outpostWindowRatioText}}</text>
+            <text>360°</text>
           </view>
         </view>
-        <view class="range-labels">
-          <text>开始 {{item.startSec}}s</text>
-          <text>结束 {{item.endSec}}s</text>
+        <view class="field-item full-span field-note">
+          <text>{{analysis.target.resolved.note}}</text>
         </view>
       </view>
     </view>
-    <view wx:else class="summary-box compact-empty">
-      <text class="summary-line">攻击方当前还没有启用可排程状态 </text>
-    </view>
-    <text class="section-label section-gap">受击方轨道</text>
-    <view wx:if="{{targetTimelineTracks.length}}" class="timeline-board timeline-board-target">
-      <view class="timeline-axis">
-        <text>{{timelineRangeStartLabel}}</text>
-        <text>{{timelineRangeEndLabel}}</text>
-      </view>
-      <view class="timeline-row" wx:for="{{targetTimelineTracks}}" wx:key="effectKey">
-        <view class="timeline-row-head">
-          <text class="effect-title">{{item.label}}</text>
-          <text class="effect-pill effect-pill-{{item.tone}}">{{item.category}}</text>
+
+    <view class="panel-card compact">
+      <view class="panel-header">
+        <view class="panel-heading-inline">
+          <text class="panel-kicker">BUFFS / DEBUFFS</text>
+          <text class="panel-title panel-title-inline">增益 / 减益</text>
         </view>
-        <picker wx:if="{{item.hasVariants}}" mode="selector" range="{{item.variantOptions}}" range-key="label" value="{{item.variantIndex}}" data-side="target" data-effect-key="{{item.effectKey}}" bindchange="onEffectVariantChange">
-          <view class="timeline-picker">{{item.variantLabel}}</view>
-        </picker>
-        <picker wx:if="{{item.hasDurationOptions}}" mode="selector" range="{{item.durationOptions}}" range-key="label" value="{{item.durationIndex}}" data-side="target" data-effect-key="{{item.effectKey}}" bindchange="onEffectDurationChange">
-          <view class="timeline-picker">{{item.durationLabel || '选择激活灯臂'}}</view>
-        </picker>
-        <text wx:if="{{!item.hasVariants && !item.hasDurationOptions}}" class="effect-meta">{{item.description}}</text>
-        <text class="effect-meta">{{item.variantLabel}}{{item.variantLabel && item.durationLabel ? ' · ' : ''}}{{item.durationLabel}}{{(item.variantLabel || item.durationLabel) ? ' · ' : ''}}持续 {{item.durationSec}}s，可直接拖动蓝条调整开始时间</text>
-        <view id="timeline-track-target-{{item.effectKey}}" class="timeline-track-bar timeline-track-bar-large">
-          <view class="timeline-sim-window" style="left: {{simulationStartPercent}}%; width: {{simulationSpanPercent}}%;"></view>
-          <view class="timeline-track-fill timeline-track-fill-draggable target-track-fill {{activeTimelineTrackId === item.effectKey && activeTimelineTrackSide === 'target' ? 'timeline-track-active' : ''}}" style="left: {{item.startPercent}}%; width: {{item.spanPercent}}%;" data-side="target" data-effect-key="{{item.effectKey}}" catchtouchstart="onTimelineDragStart" catchtouchmove="onTimelineDragMove" catchtouchend="onTimelineDragEnd" catchtouchcancel="onTimelineDragEnd">
-            <view class="timeline-track-segments">
-              <view wx:if="{{item.hasPreSimSegment}}" class="timeline-track-segment timeline-track-segment-pre target-track-segment-pre" style="width: {{item.preSimPercent}}%;"></view>
-              <view class="timeline-track-segment timeline-track-segment-main target-track-segment-main" style="left: {{item.simOffsetPercent}}%; width: {{item.simPercent}}%;"></view>
-              <view wx:if="{{item.hasPostSimSegment}}" class="timeline-track-segment timeline-track-segment-post target-track-segment-post" style="left: {{item.postSimOffsetPercent}}%; width: {{item.postSimPercent}}%;"></view>
+      </view>
+      <text class="section-label">攻击方状态</text>
+      <view class="effect-grid">
+        <view
+          class="effect-row"
+          wx:for="{{attackerEffectRows}}"
+          wx:key="rowIndex"
+          wx:for-index="rowIndex"
+          wx:for-item="row"
+        >
+          <view
+            class="effect-card {{effect.active ? 'effect-active' : ''}}"
+            wx:for="{{row}}"
+            wx:key="key"
+            wx:for-item="effect"
+            data-key="{{effect.key}}"
+            bindtap="onToggleAttackerEffect"
+            hover-class="effect-card-hover"
+            hover-stay-time="80"
+          >
+            <view wx:if="{{effect.active}}" class="effect-selected-indicator">已选中</view>
+            <view class="effect-top">
+              <text class="effect-title">{{effect.label}}</text>
+              <text class="effect-pill effect-pill-{{effect.tone}}">{{effect.category}}</text>
             </view>
-            <view class="timeline-track-handle"></view>
+            <picker
+              wx:if="{{effect.active && effect.hasVariants}}"
+              mode="selector"
+              range="{{effect.variantOptions}}"
+              range-key="label"
+              value="{{effect.variantIndex}}"
+              data-side="attacker"
+              data-effect-key="{{effect.key}}"
+              bindchange="onEffectVariantChange"
+              catchtap="onPickerTap"
+            >
+              <view class="timeline-picker effect-picker-inline"
+                >{{effect.variantLabel || '选择地形'}}</view
+              >
+            </picker>
+            <picker
+              wx:if="{{effect.active && effect.hasDurationOptions}}"
+              mode="selector"
+              range="{{effect.durationOptions}}"
+              range-key="label"
+              value="{{effect.durationIndex}}"
+              data-side="attacker"
+              data-effect-key="{{effect.key}}"
+              bindchange="onEffectDurationChange"
+              catchtap="onPickerTap"
+            >
+              <view class="timeline-picker effect-picker-inline"
+                >{{effect.durationLabel || '选择激活灯臂'}}</view
+              >
+            </picker>
+            <text
+              class="effect-meta"
+              wx:if="{{effect.active && (effect.variantLabel || effect.durationLabel)}}"
+              >{{effect.variantLabel}}{{effect.variantLabel && effect.durationLabel ? ' · ' :
+              ''}}{{effect.durationLabel}}{{effect.timingText ? ' · ' :
+              ''}}{{effect.timingText}}</text
+            >
+            <view class="effect-badge-row" wx:if="{{effect.badges.length}}">
+              <text
+                class="effect-badge effect-badge-{{badge.tone}}"
+                wx:for="{{effect.badges}}"
+                wx:key="text"
+                wx:for-item="badge"
+                >{{badge.text}}</text
+              >
+            </view>
+            <view class="effect-copy">
+              <text
+                wx:for="{{effect.descriptionSegments}}"
+                wx:key="index"
+                wx:for-index="index"
+                wx:for-item="segment"
+                class="effect-copy-segment {{segment.isNumber ? 'effect-copy-number' : ''}}"
+                >{{segment.text}}</text
+              >
+            </view>
           </view>
         </view>
-        <view class="range-labels">
-          <text>开始 {{item.startSec}}s</text>
-          <text>结束 {{item.endSec}}s</text>
-        </view>
       </view>
-    </view>
-    <view wx:else class="summary-box compact-empty">
-      <text class="summary-line">受击方当前还没有启用可排程状态 </text>
-    </view>
-  </view>
-
-  <view class="panel-card compact">
-    <view class="panel-header align-center">
-      <view class="panel-heading-inline">
-        <text class="panel-kicker">DATA</text>
-        <text class="panel-title panel-title-inline">数据分析</text>
-      </view>
-    </view>
-    <view class="metric-grid">
-      <view class="metric-row" wx:for="{{metricRows}}" wx:key="rowIndex" wx:for-index="rowIndex">
-        <view class="metric-card" wx:for="{{item}}" wx:key="label">
-          <text class="metric-label">{{item.label}}</text>
-          <text class="metric-value">{{item.value}}</text>
-        </view>
-      </view>
-    </view>
-    <view class="summary-box">
-      <view class="summary-highlight-grid">
-        <view class="summary-highlight-row" wx:for="{{summaryHighlightRows}}" wx:key="rowIndex" wx:for-index="rowIndex">
-          <view class="summary-highlight-card summary-highlight-{{item.tone}}" wx:for="{{item}}" wx:key="label">
-            <text class="summary-highlight-label">{{item.label}}</text>
-            <text class="summary-highlight-value">{{item.value}}</text>
+      <text class="section-label section-gap">受击方状态</text>
+      <view class="effect-grid">
+        <view
+          class="effect-row"
+          wx:for="{{targetEffectRows}}"
+          wx:key="rowIndex"
+          wx:for-index="rowIndex"
+          wx:for-item="row"
+        >
+          <view
+            class="effect-card {{effect.active ? 'effect-active target-active' : ''}}"
+            wx:for="{{row}}"
+            wx:key="key"
+            wx:for-item="effect"
+            data-key="{{effect.key}}"
+            bindtap="onToggleTargetEffect"
+            hover-class="effect-card-hover"
+            hover-stay-time="80"
+          >
+            <view wx:if="{{effect.active}}" class="effect-selected-indicator target-indicator"
+              >已选中</view
+            >
+            <view class="effect-top">
+              <text class="effect-title">{{effect.label}}</text>
+              <text class="effect-pill effect-pill-{{effect.tone}}">{{effect.category}}</text>
+            </view>
+            <picker
+              wx:if="{{effect.active && effect.hasVariants}}"
+              mode="selector"
+              range="{{effect.variantOptions}}"
+              range-key="label"
+              value="{{effect.variantIndex}}"
+              data-side="target"
+              data-effect-key="{{effect.key}}"
+              bindchange="onEffectVariantChange"
+              catchtap="onPickerTap"
+            >
+              <view class="timeline-picker effect-picker-inline"
+                >{{effect.variantLabel || '选择地形'}}</view
+              >
+            </picker>
+            <picker
+              wx:if="{{effect.active && effect.hasDurationOptions}}"
+              mode="selector"
+              range="{{effect.durationOptions}}"
+              range-key="label"
+              value="{{effect.durationIndex}}"
+              data-side="target"
+              data-effect-key="{{effect.key}}"
+              bindchange="onEffectDurationChange"
+              catchtap="onPickerTap"
+            >
+              <view class="timeline-picker effect-picker-inline"
+                >{{effect.durationLabel || '选择激活灯臂'}}</view
+              >
+            </picker>
+            <text
+              class="effect-meta"
+              wx:if="{{effect.active && (effect.variantLabel || effect.durationLabel)}}"
+              >{{effect.variantLabel}}{{effect.variantLabel && effect.durationLabel ? ' · ' :
+              ''}}{{effect.durationLabel}}{{effect.timingText ? ' · ' :
+              ''}}{{effect.timingText}}</text
+            >
+            <view class="effect-badge-row" wx:if="{{effect.badges.length}}">
+              <text
+                class="effect-badge effect-badge-{{badge.tone}}"
+                wx:for="{{effect.badges}}"
+                wx:key="text"
+                wx:for-item="badge"
+                >{{badge.text}}</text
+              >
+            </view>
+            <view class="effect-copy">
+              <text
+                wx:for="{{effect.descriptionSegments}}"
+                wx:key="index"
+                wx:for-index="index"
+                wx:for-item="segment"
+                class="effect-copy-segment {{segment.isNumber ? 'effect-copy-number' : ''}}"
+                >{{segment.text}}</text
+              >
+            </view>
           </view>
         </view>
       </view>
-      <text class="summary-line" wx:for="{{analysis.summaryLines}}" wx:key="index" wx:for-index="index">{{item}}</text>
-    </view>
-    <view class="summary-box taunt-box" wx:if="{{analysis.taunt && analysis.taunt.lines && analysis.taunt.lines.length}}">
-      <text class="taunt-title">{{analysis.taunt.title}}</text>
-      <text class="taunt-line" wx:for="{{analysis.taunt.lines}}" wx:key="index" wx:for-index="index">{{item}}</text>
-    </view>
-  </view>
-
-  <view class="panel-card compact">
-    <view class="panel-header align-center">
-      <view class="panel-heading-inline">
-        <text class="panel-kicker">CURVES</text>
-        <text class="panel-title panel-title-inline">数值曲线</text>
-      </view>
-      <view class="theme-switch mini" bindtap="onResetChartViewport" hover-class="tap-bounce-active" hover-stay-time="90">重置视图</view>
-    </view>
-    <text class="section-label chart-gesture-note">双指缩放或平移时间轴 </text>
-
-    <view class="chart-card">
-      <view class="chart-head">
-        <view>
-          <text class="chart-title">{{analysis.charts.output.title}}</text>
-          <text class="chart-subtitle">{{analysis.charts.output.subtitle}}</text>
-        </view>
-        <view class="chart-chip">{{analysis.charts.output.unitHint}}</view>
-      </view>
-      <view class="legend-row">
-        <view class="legend-item" wx:for="{{analysis.charts.output.series}}" wx:key="key">
-          <text class="legend-dot" style="background: {{item.color}};"></text>
-          <text class="legend-label">{{item.label}}</text>
-        </view>
-      </view>
-      <view id="outputChartWrap" class="chart-touch-layer" data-chart-key="output" bindtouchstart="onChartTouchStart" bindtouchmove="onChartTouchMove" bindtouchend="onChartTouchEnd" bindtouchcancel="onChartTouchEnd">
-        <canvas canvas-id="outputChart" class="chart-canvas" style="width: {{chartWidth}}px; height: {{chartHeight}}px;" width="{{chartWidth}}" height="{{chartHeight}}"></canvas>
-      </view>
     </view>
 
-    <view class="chart-card">
-      <view class="chart-head">
-        <view>
-          <text class="chart-title">{{analysis.charts.thermal.title}}</text>
-          <text class="chart-subtitle">{{analysis.charts.thermal.subtitle}}</text>
-        </view>
-        <view class="chart-chip">{{analysis.charts.thermal.unitHint}}</view>
-      </view>
-      <view class="legend-row">
-        <view class="legend-item" wx:for="{{analysis.charts.thermal.series}}" wx:key="key">
-          <text class="legend-dot" style="background: {{item.color}};"></text>
-          <text class="legend-label">{{item.label}}</text>
+    <view class="panel-card compact">
+      <view class="panel-header align-center">
+        <view class="panel-heading-inline">
+          <text class="panel-kicker">TIMELINE</text>
+          <text class="panel-title panel-title-inline">出伤进程</text>
         </view>
       </view>
-      <view id="thermalChartWrap" class="chart-touch-layer" data-chart-key="thermal" bindtouchstart="onChartTouchStart" bindtouchmove="onChartTouchMove" bindtouchend="onChartTouchEnd" bindtouchcancel="onChartTouchEnd">
-        <canvas canvas-id="thermalChart" class="chart-canvas" style="width: {{chartWidth}}px; height: {{chartHeight}}px;" width="{{chartWidth}}" height="{{chartHeight}}"></canvas>
+      <text class="section-label">攻击方轨道</text>
+      <view wx:if="{{attackerTimelineTracks.length}}" class="timeline-board">
+        <view class="timeline-axis">
+          <text>{{timelineRangeStartLabel}}</text>
+          <text>{{timelineRangeEndLabel}}</text>
+        </view>
+        <view class="timeline-row" wx:for="{{attackerTimelineTracks}}" wx:key="effectKey">
+          <view class="timeline-row-head">
+            <text class="effect-title">{{item.label}}</text>
+            <text class="effect-pill effect-pill-{{item.tone}}">{{item.category}}</text>
+          </view>
+          <picker
+            wx:if="{{item.hasVariants}}"
+            mode="selector"
+            range="{{item.variantOptions}}"
+            range-key="label"
+            value="{{item.variantIndex}}"
+            data-side="attacker"
+            data-effect-key="{{item.effectKey}}"
+            bindchange="onEffectVariantChange"
+          >
+            <view class="timeline-picker">{{item.variantLabel}}</view>
+          </picker>
+          <picker
+            wx:if="{{item.hasDurationOptions}}"
+            mode="selector"
+            range="{{item.durationOptions}}"
+            range-key="label"
+            value="{{item.durationIndex}}"
+            data-side="attacker"
+            data-effect-key="{{item.effectKey}}"
+            bindchange="onEffectDurationChange"
+          >
+            <view class="timeline-picker">{{item.durationLabel || '选择激活灯臂'}}</view>
+          </picker>
+          <text wx:if="{{!item.hasVariants && !item.hasDurationOptions}}" class="effect-meta"
+            >{{item.description}}</text
+          >
+          <text class="effect-meta"
+            >{{item.variantLabel}}{{item.variantLabel && item.durationLabel ? ' · ' :
+            ''}}{{item.durationLabel}}{{(item.variantLabel || item.durationLabel) ? ' · ' : ''}}持续
+            {{item.durationSec}}s，可直接拖动调整开始时间</text
+          >
+          <view
+            id="timeline-track-attacker-{{item.effectKey}}"
+            class="timeline-track-bar timeline-track-bar-large"
+          >
+            <view
+              class="timeline-sim-window"
+              style="left: {{simulationStartPercent}}%; width: {{simulationSpanPercent}}%;"
+            ></view>
+            <view
+              class="timeline-track-fill timeline-track-fill-draggable {{activeTimelineTrackId === item.effectKey && activeTimelineTrackSide === 'attacker' ? 'timeline-track-active' : ''}}"
+              style="left: {{item.startPercent}}%; width: {{item.spanPercent}}%;"
+              data-side="attacker"
+              data-effect-key="{{item.effectKey}}"
+              catchtouchstart="onTimelineDragStart"
+              catchtouchmove="onTimelineDragMove"
+              catchtouchend="onTimelineDragEnd"
+              catchtouchcancel="onTimelineDragEnd"
+            >
+              <view class="timeline-track-segments">
+                <view
+                  wx:if="{{item.hasPreSimSegment}}"
+                  class="timeline-track-segment timeline-track-segment-pre"
+                  style="width: {{item.preSimPercent}}%;"
+                ></view>
+                <view
+                  class="timeline-track-segment timeline-track-segment-main"
+                  style="left: {{item.simOffsetPercent}}%; width: {{item.simPercent}}%;"
+                ></view>
+                <view
+                  wx:if="{{item.hasPostSimSegment}}"
+                  class="timeline-track-segment timeline-track-segment-post"
+                  style="left: {{item.postSimOffsetPercent}}%; width: {{item.postSimPercent}}%;"
+                ></view>
+              </view>
+              <view class="timeline-track-handle"></view>
+            </view>
+          </view>
+          <view class="range-labels">
+            <text>开始 {{item.startSec}}s</text>
+            <text>结束 {{item.endSec}}s</text>
+          </view>
+        </view>
+      </view>
+      <view wx:else class="summary-box compact-empty">
+        <text class="summary-line">攻击方当前还没有可用状态 </text>
+      </view>
+      <text class="section-label section-gap">受击方轨道</text>
+      <view wx:if="{{targetTimelineTracks.length}}" class="timeline-board timeline-board-target">
+        <view class="timeline-axis">
+          <text>{{timelineRangeStartLabel}}</text>
+          <text>{{timelineRangeEndLabel}}</text>
+        </view>
+        <view class="timeline-row" wx:for="{{targetTimelineTracks}}" wx:key="effectKey">
+          <view class="timeline-row-head">
+            <text class="effect-title">{{item.label}}</text>
+            <text class="effect-pill effect-pill-{{item.tone}}">{{item.category}}</text>
+          </view>
+          <picker
+            wx:if="{{item.hasVariants}}"
+            mode="selector"
+            range="{{item.variantOptions}}"
+            range-key="label"
+            value="{{item.variantIndex}}"
+            data-side="target"
+            data-effect-key="{{item.effectKey}}"
+            bindchange="onEffectVariantChange"
+          >
+            <view class="timeline-picker">{{item.variantLabel}}</view>
+          </picker>
+          <picker
+            wx:if="{{item.hasDurationOptions}}"
+            mode="selector"
+            range="{{item.durationOptions}}"
+            range-key="label"
+            value="{{item.durationIndex}}"
+            data-side="target"
+            data-effect-key="{{item.effectKey}}"
+            bindchange="onEffectDurationChange"
+          >
+            <view class="timeline-picker">{{item.durationLabel || '选择激活灯臂'}}</view>
+          </picker>
+          <text wx:if="{{!item.hasVariants && !item.hasDurationOptions}}" class="effect-meta"
+            >{{item.description}}</text
+          >
+          <text class="effect-meta"
+            >{{item.variantLabel}}{{item.variantLabel && item.durationLabel ? ' · ' :
+            ''}}{{item.durationLabel}}{{(item.variantLabel || item.durationLabel) ? ' · ' : ''}}持续{{item.durationSec}}s 直接拖动 调整开始时间</text
+          >
+          <view
+            id="timeline-track-target-{{item.effectKey}}"
+            class="timeline-track-bar timeline-track-bar-large"
+          >
+            <view
+              class="timeline-sim-window"
+              style="left: {{simulationStartPercent}}%; width: {{simulationSpanPercent}}%;"
+            ></view>
+            <view
+              class="timeline-track-fill timeline-track-fill-draggable target-track-fill {{activeTimelineTrackId === item.effectKey && activeTimelineTrackSide === 'target' ? 'timeline-track-active' : ''}}"
+              style="left: {{item.startPercent}}%; width: {{item.spanPercent}}%;"
+              data-side="target"
+              data-effect-key="{{item.effectKey}}"
+              catchtouchstart="onTimelineDragStart"
+              catchtouchmove="onTimelineDragMove"
+              catchtouchend="onTimelineDragEnd"
+              catchtouchcancel="onTimelineDragEnd"
+            >
+              <view class="timeline-track-segments">
+                <view
+                  wx:if="{{item.hasPreSimSegment}}"
+                  class="timeline-track-segment timeline-track-segment-pre target-track-segment-pre"
+                  style="width: {{item.preSimPercent}}%;"
+                ></view>
+                <view
+                  class="timeline-track-segment timeline-track-segment-main target-track-segment-main"
+                  style="left: {{item.simOffsetPercent}}%; width: {{item.simPercent}}%;"
+                ></view>
+                <view
+                  wx:if="{{item.hasPostSimSegment}}"
+                  class="timeline-track-segment timeline-track-segment-post target-track-segment-post"
+                  style="left: {{item.postSimOffsetPercent}}%; width: {{item.postSimPercent}}%;"
+                ></view>
+              </view>
+              <view class="timeline-track-handle"></view>
+            </view>
+          </view>
+          <view class="range-labels">
+            <text>开始 {{item.startSec}}s</text>
+            <text>结束 {{item.endSec}}s</text>
+          </view>
+        </view>
+      </view>
+      <view wx:else class="summary-box compact-empty">
+        <text class="summary-line">受击方当前还没有可用状态 </text>
       </view>
     </view>
 
-    <view class="chart-card">
-      <view class="chart-head">
-        <view>
-          <text class="chart-title">{{analysis.charts.target.title}}</text>
-          <text class="chart-subtitle">{{analysis.charts.target.subtitle}}</text>
-        </view>
-        <view class="chart-chip">{{analysis.charts.target.unitHint}}</view>
-      </view>
-      <view class="legend-row">
-        <view class="legend-item" wx:for="{{analysis.charts.target.series}}" wx:key="key">
-          <text class="legend-dot" style="background: {{item.color}};"></text>
-          <text class="legend-label">{{item.label}}</text>
+    <view class="panel-card compact">
+      <view class="panel-header align-center">
+        <view class="panel-heading-inline">
+          <text class="panel-kicker">DATA</text>
+          <text class="panel-title panel-title-inline">数据分析</text>
         </view>
       </view>
-      <view id="targetChartWrap" class="chart-touch-layer" data-chart-key="target" bindtouchstart="onChartTouchStart" bindtouchmove="onChartTouchMove" bindtouchend="onChartTouchEnd" bindtouchcancel="onChartTouchEnd">
-        <canvas canvas-id="targetChart" class="chart-canvas" style="width: {{chartWidth}}px; height: {{chartHeight}}px;" width="{{chartWidth}}" height="{{chartHeight}}"></canvas>
+      <view class="metric-grid">
+        <view class="metric-row" wx:for="{{metricRows}}" wx:key="rowIndex" wx:for-index="rowIndex">
+          <view class="metric-card" wx:for="{{item}}" wx:key="label">
+            <text class="metric-label">{{item.label}}</text>
+            <text class="metric-value">{{item.value}}</text>
+          </view>
+        </view>
+      </view>
+      <view class="summary-box">
+        <view class="summary-highlight-grid">
+          <view
+            class="summary-highlight-row"
+            wx:for="{{summaryHighlightRows}}"
+            wx:key="rowIndex"
+            wx:for-index="rowIndex"
+          >
+            <view
+              class="summary-highlight-card summary-highlight-{{item.tone}}"
+              wx:for="{{item}}"
+              wx:key="label"
+            >
+              <text class="summary-highlight-label">{{item.label}}</text>
+              <text class="summary-highlight-value">{{item.value}}</text>
+            </view>
+          </view>
+        </view>
+        <text
+          class="summary-line"
+          wx:for="{{analysis.summaryLines}}"
+          wx:key="index"
+          wx:for-index="index"
+          >{{item}}</text
+        >
+      </view>
+      <view
+        class="summary-box taunt-box"
+        wx:if="{{analysis.taunt && analysis.taunt.lines && analysis.taunt.lines.length}}"
+      >
+        <text class="taunt-title">{{analysis.taunt.title}}</text>
+        <text
+          class="taunt-line"
+          wx:for="{{analysis.taunt.lines}}"
+          wx:key="index"
+          wx:for-index="index"
+          >{{item}}</text
+        >
       </view>
     </view>
-  </view>
+
+    <view class="panel-card compact">
+      <view class="panel-header align-center">
+        <view class="panel-heading-inline">
+          <text class="panel-kicker">CURVES</text>
+          <text class="panel-title panel-title-inline">数值曲线</text>
+        </view>
+        <view
+          class="theme-switch mini"
+          bindtap="onResetChartViewport"
+          hover-class="tap-bounce-active"
+          hover-stay-time="90"
+          >重置视图</view
+        >
+      </view>
+      <text class="section-label chart-gesture-note">双指缩放或平移时间轴 </text>
+
+      <view class="chart-card">
+        <view class="chart-head">
+          <view>
+            <text class="chart-title">{{analysis.charts.output.title}}</text>
+            <text class="chart-subtitle">{{analysis.charts.output.subtitle}}</text>
+          </view>
+          <view class="chart-chip">{{analysis.charts.output.unitHint}}</view>
+        </view>
+        <view class="legend-row">
+          <view class="legend-item" wx:for="{{analysis.charts.output.series}}" wx:key="key">
+            <text class="legend-dot" style="background: {{item.color}};"></text>
+            <text class="legend-label">{{item.label}}</text>
+          </view>
+        </view>
+        <view
+          id="outputChartWrap"
+          class="chart-touch-layer"
+          data-chart-key="output"
+          bindtouchstart="onChartTouchStart"
+          bindtouchmove="onChartTouchMove"
+          bindtouchend="onChartTouchEnd"
+          bindtouchcancel="onChartTouchEnd"
+        >
+          <canvas
+            canvas-id="outputChart"
+            class="chart-canvas"
+            style="width: {{chartWidth}}px; height: {{chartHeight}}px;"
+            width="{{chartWidth}}"
+            height="{{chartHeight}}"
+          ></canvas>
+        </view>
+      </view>
+
+      <view class="chart-card">
+        <view class="chart-head">
+          <view>
+            <text class="chart-title">{{analysis.charts.thermal.title}}</text>
+            <text class="chart-subtitle">{{analysis.charts.thermal.subtitle}}</text>
+          </view>
+          <view class="chart-chip">{{analysis.charts.thermal.unitHint}}</view>
+        </view>
+        <view class="legend-row">
+          <view class="legend-item" wx:for="{{analysis.charts.thermal.series}}" wx:key="key">
+            <text class="legend-dot" style="background: {{item.color}};"></text>
+            <text class="legend-label">{{item.label}}</text>
+          </view>
+        </view>
+        <view
+          id="thermalChartWrap"
+          class="chart-touch-layer"
+          data-chart-key="thermal"
+          bindtouchstart="onChartTouchStart"
+          bindtouchmove="onChartTouchMove"
+          bindtouchend="onChartTouchEnd"
+          bindtouchcancel="onChartTouchEnd"
+        >
+          <canvas
+            canvas-id="thermalChart"
+            class="chart-canvas"
+            style="width: {{chartWidth}}px; height: {{chartHeight}}px;"
+            width="{{chartWidth}}"
+            height="{{chartHeight}}"
+          ></canvas>
+        </view>
+      </view>
+
+      <view class="chart-card">
+        <view class="chart-head">
+          <view>
+            <text class="chart-title">{{analysis.charts.target.title}}</text>
+            <text class="chart-subtitle">{{analysis.charts.target.subtitle}}</text>
+          </view>
+          <view class="chart-chip">{{analysis.charts.target.unitHint}}</view>
+        </view>
+        <view class="legend-row">
+          <view class="legend-item" wx:for="{{analysis.charts.target.series}}" wx:key="key">
+            <text class="legend-dot" style="background: {{item.color}};"></text>
+            <text class="legend-label">{{item.label}}</text>
+          </view>
+        </view>
+        <view
+          id="targetChartWrap"
+          class="chart-touch-layer"
+          data-chart-key="target"
+          bindtouchstart="onChartTouchStart"
+          bindtouchmove="onChartTouchMove"
+          bindtouchend="onChartTouchEnd"
+          bindtouchcancel="onChartTouchEnd"
+        >
+          <canvas
+            canvas-id="targetChart"
+            class="chart-canvas"
+            style="width: {{chartWidth}}px; height: {{chartHeight}}px;"
+            width="{{chartWidth}}"
+            height="{{chartHeight}}"
+          ></canvas>
+        </view>
+      </view>
+
+      <view class="lab-footer-note">
+        <text class="lab-footer-copy">由 南科大ARTINX战队-归尘 开发，仍在优化阶段
+          如有不合理之处敬请谅解</text>
+        <text class="lab-footer-version">版本号 v1.0.1</text>
+      </view>
+    </view>
   </view>
 </view>

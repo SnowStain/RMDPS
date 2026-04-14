@@ -16,44 +16,35 @@ const OUTPOST_WINDOW_DEFAULT_BY_ATTACKER = {
 const RESULT_TAUNT_LIBRARY = {
   quick: [
     '这就是数值吗，吓哭了',
-    '血条归零比你挂科还快，对面纯纯经验包',
-    '对手：妈妈，对面在打我；妈妈，对面把我秒了',
+    '对手：妈妈，对面在打我；1s后：妈妈，对面把我秒了',
     '省流：动力强劲',
     '这TTK，对面买活都是浪费金币',
   ],
   clean: [
     '输出丝滑，让对面一个接着一个来排队暴毙吧',
-    '每一发都精准打脸，对面连挣扎都显得多余',
+    '每一发都精准而优雅，对面连挣扎都显得多余',
     '不吵不闹闷声虐菜，稳稳送对面底盘下电咯',
-    '赛场点名处决，轮到谁谁直接原地蒸发',
   ],
   grind: [
     '高情商：输出平滑；低情商：略显颓势',
-    '伤害一点点刮，好歹最后应该是刮死了',
+    '伤害好刮，好歹最后应该是刮死了',
     '打这么慢，对面难道不会躲吗',
   ],
   stalled: [
     '这输出是给对面抛光装甲板？不如上去创了都比这疼',
     '对面的血好厚啊（doge），绝对不是自己输出太菜对吧',
-    '差一步击穿，像差一分挂科，菜得抠脚。',
     '你大可以努力感动自己，自瞄肯定没那么弱的对吧',
     '打歪了，你中那点伤害是为了最后这点体面吗',
-    'dps没输，输在对面死赖就是不吃伤害啊 嘿嘿',
   ],
   shielded: [
     '护甲没开就输出？对着空气打拳，纯纯搞笑',
     '门都没开，白给一波，对面看了都想笑',
-    '护甲一合，伤害直接归零，白费力气',
     '护甲没开的输出，焦虑拉满，伤害为零',
   ],
 };
 
 const RESULT_TAUNT_REACTIONS = [
-  '对面要是能打字，早哭着喊投降退赛了',
-  '把这结果贴裁判台，让大家看对面有多菜',
-  '数据说明一切，今天对面就不配上场',
-  '这曲线有声的话，全是对面破防的哀嚎',
-  '对面现在缺的不是战术，是能扛揍的脸',
+  '数据说明一切'
 ];
 
 const LEVEL_OPTIONS = Array.from({ length: 10 }, (_, index) => ({
@@ -90,6 +81,23 @@ const TARGET_ROLE_OPTIONS = [
 const POSTURE_KEY_MOBILE = 'mobile';
 const SENTRY_POSTURE_DECAY_SEC = 180;
 const SENTRY_BASE_COOLING_RATE = 30;
+
+const SENTRY_PROFILE_STATS = {
+  auto: {
+    label: '全自动',
+    maxHealth: 400,
+    maxHeat: 260,
+    coolingRate: 30,
+    chassisPower: 100,
+  },
+  semi: {
+    label: '半自动',
+    maxHealth: 200,
+    maxHeat: 100,
+    coolingRate: 10,
+    chassisPower: 60,
+  },
+};
 
 const SENTRY_POSTURE_INTRINSIC_EFFECTS = {
   mobile: {
@@ -280,24 +288,124 @@ function pickTauntVariant(list, seed) {
   return list[Math.abs(seed) % list.length];
 }
 
+function buildDescriptionSegments(description) {
+  const source = String(description || '');
+  if (!source) {
+    return [];
+  }
+  const pattern = /([+\-]?\d+(?:\.\d+)?%?|[+\-]?\d+(?:\.\d+)?[a-zA-Z]+)/g;
+  const segments = [];
+  let lastIndex = 0;
+  let match = pattern.exec(source);
+  while (match) {
+    if (match.index > lastIndex) {
+      segments.push({ text: source.slice(lastIndex, match.index), isNumber: false });
+    }
+    segments.push({ text: match[0], isNumber: true });
+    lastIndex = match.index + match[0].length;
+    match = pattern.exec(source);
+  }
+  if (lastIndex < source.length) {
+    segments.push({ text: source.slice(lastIndex), isNumber: false });
+  }
+  return segments;
+}
+
+function resolveTauntBucket(context) {
+  const { inputs, target, ttkSec, totalDamage, totalShots, lastReceiveRatio, targetPart } = context;
+  const maxTargetHealth = Math.max(1, Number(target && target.resolved && target.resolved.maxHealth) || 0);
+  const damageCoverage = Number(totalDamage) / maxTargetHealth;
+  const windowRatio = Math.max(0.01, Number((targetPart && targetPart.receiveRatio) || lastReceiveRatio || 1));
+  const evaluatedSec = Math.max(1, Number(ttkSec === null ? inputs.durationSec : ttkSec) || 1);
+  const shotDensity = Number(totalShots) / evaluatedSec;
+
+  if (inputs.targetRole === 'base' && inputs.targetPart === 'shield_closed') {
+    return 'shielded';
+  }
+
+  if (ttkSec === null) {
+    if (damageCoverage >= 0.82) {
+      return 'grind';
+    }
+    if (damageCoverage >= 0.45 || (damageCoverage >= 0.28 && windowRatio <= 0.4) || (shotDensity >= 7.5 && damageCoverage >= 0.3)) {
+      return 'grind';
+    }
+    return 'stalled';
+  }
+
+  if (ttkSec <= 2.6 || (ttkSec <= 3.4 && damageCoverage >= 1.08)) {
+    return 'quick';
+  }
+  if (ttkSec <= 6.5 || (ttkSec <= 8.2 && damageCoverage >= 1.25) || (shotDensity >= 9 && ttkSec <= 9.5)) {
+    return 'clean';
+  }
+  if (ttkSec <= 12.5 || damageCoverage >= 1.35 || (windowRatio <= 0.4 && ttkSec <= 14.5)) {
+    return 'grind';
+  }
+  return 'stalled';
+}
+
+function resolveTauntBucketCandidates(context, primaryBucket) {
+  const { inputs, target, ttkSec, totalDamage, totalShots, lastReceiveRatio, targetPart } = context;
+  const maxTargetHealth = Math.max(1, Number(target && target.resolved && target.resolved.maxHealth) || 0);
+  const damageCoverage = Number(totalDamage) / maxTargetHealth;
+  const windowRatio = Math.max(0.01, Number((targetPart && targetPart.receiveRatio) || lastReceiveRatio || 1));
+  const evaluatedSec = Math.max(1, Number(ttkSec === null ? inputs.durationSec : ttkSec) || 1);
+  const shotDensity = Number(totalShots) / evaluatedSec;
+  const candidates = [primaryBucket];
+
+  if (primaryBucket === 'shielded') {
+    candidates.push(damageCoverage >= 0.18 ? 'stalled' : 'shielded');
+    return Array.from(new Set(candidates));
+  }
+
+  if (ttkSec === null) {
+    if (damageCoverage >= 0.3 || (windowRatio <= 0.4 && damageCoverage >= 0.22) || shotDensity >= 8.5) {
+      candidates.push('grind');
+    }
+    if (damageCoverage <= 0.55) {
+      candidates.push('stalled');
+    }
+    return Array.from(new Set(candidates));
+  }
+
+  if (ttkSec >= 2.2 && ttkSec <= 4.2) {
+    candidates.push('quick', 'clean');
+  }
+  if (ttkSec >= 5.8 && ttkSec <= 9.5) {
+    candidates.push('clean', 'grind');
+  }
+  if (ttkSec >= 10.5) {
+    candidates.push('grind', 'stalled');
+  }
+  if (damageCoverage >= 1.28 && ttkSec <= 8.8) {
+    candidates.push('clean');
+  }
+  if (windowRatio <= 0.4 && ttkSec <= 15) {
+    candidates.push('grind');
+  }
+  return Array.from(new Set(candidates));
+}
+
+function buildTauntVariantPool(bucketKeys) {
+  return bucketKeys.reduce((collection, bucketKey) => {
+    const list = RESULT_TAUNT_LIBRARY[bucketKey];
+    if (Array.isArray(list) && list.length) {
+      return collection.concat(list);
+    }
+    return collection;
+  }, []);
+}
+
 function buildAnalysisTaunt(context) {
   const { inputs, target, ttkSec, totalDamage, peakHeat, totalShots, lastReceiveRatio, targetPart } = context;
-  let bucketKey = 'clean';
-  if (inputs.targetRole === 'base' && inputs.targetPart === 'shield_closed') {
-    bucketKey = 'shielded';
-  } else if (inputs.targetRole === 'outpost') {
-    bucketKey = inputs.targetWindowDegrees >= 240 ? 'outpostWide' : 'outpostTight';
-  } else if (ttkSec === null) {
-    bucketKey = 'stalled';
-  } else if (ttkSec <= 3) {
-    bucketKey = 'quick';
-  } else if (ttkSec > 10) {
-    bucketKey = 'grind';
-  }
+  const bucketKey = resolveTauntBucket(context);
+  const bucketCandidates = resolveTauntBucketCandidates(context, bucketKey);
+  const tauntPool = buildTauntVariantPool(bucketCandidates);
 
   const primarySeed = Math.round(totalDamage) + totalShots + Math.round(peakHeat) + Math.round(lastReceiveRatio * 100) + String(inputs.attackerRole).length * 11 + String(inputs.targetRole).length * 7;
   const reactionSeed = Math.round((ttkSec === null ? inputs.durationSec : ttkSec) * 10) + Math.round((target && target.resolved && target.resolved.maxHealth) || 0) + Math.round((targetPart && targetPart.receiveRatio || 0) * 1000);
-  const primary = pickTauntVariant(RESULT_TAUNT_LIBRARY[bucketKey], primarySeed);
+  const primary = pickTauntVariant(tauntPool.length ? tauntPool : (RESULT_TAUNT_LIBRARY[bucketKey] || RESULT_TAUNT_LIBRARY.clean), primarySeed);
   const reaction = pickTauntVariant(RESULT_TAUNT_REACTIONS, reactionSeed);
   return {
     title: '',
@@ -629,14 +737,19 @@ const ATTACKER_CATALOG = {
   },
   sentry: {
     label: '哨兵',
-    showProfileSelector: false,
+    showProfileSelector: true,
     showLevelSelector: false,
     showPostureSelector: true,
+    defaultProfile: 'auto',
     defaultPosture: POSTURE_KEY_MOBILE,
+    profiles: {
+      auto: { label: '全自动' },
+      semi: { label: '半自动' },
+    },
     postures: {
-      mobile: { label: '移动姿态', resolve() { return { ammoType: '17mm', heatPerShot: 10, maxHeat: 220, coolingRate: SENTRY_BASE_COOLING_RATE, note: getSentryAttackerNote('mobile') }; } },
-      attack: { label: '进攻姿态', resolve() { return { ammoType: '17mm', heatPerShot: 10, maxHeat: 240, coolingRate: SENTRY_BASE_COOLING_RATE, note: getSentryAttackerNote('attack') }; } },
-      defense: { label: '防御姿态', resolve() { return { ammoType: '17mm', heatPerShot: 10, maxHeat: 220, coolingRate: SENTRY_BASE_COOLING_RATE, note: getSentryAttackerNote('defense') }; } },
+      mobile: { label: '移动姿态' },
+      attack: { label: '进攻姿态' },
+      defense: { label: '防御姿态' },
     },
   },
   drone: {
@@ -670,11 +783,15 @@ const TARGET_CATALOG = {
     },
   },
   sentry: {
-    label: '哨兵', showProfileSelector: false, showLevelSelector: false, showPostureSelector: true, defaultPosture: POSTURE_KEY_MOBILE,
+    label: '哨兵', showProfileSelector: true, showLevelSelector: false, showPostureSelector: true, defaultProfile: 'auto', defaultPosture: POSTURE_KEY_MOBILE,
+    profiles: {
+      auto: { label: '全自动' },
+      semi: { label: '半自动' },
+    },
     postures: {
-      mobile: { label: '移动姿态', resolve() { return { maxHealth: TARGET_DEFAULT_HEALTH.sentry, damageReduction: 0, note: getSentryTargetNote('mobile') }; } },
-      attack: { label: '进攻姿态', resolve() { return { maxHealth: TARGET_DEFAULT_HEALTH.sentry, damageReduction: 0, note: getSentryTargetNote('attack') }; } },
-      defense: { label: '防御姿态', resolve() { return { maxHealth: TARGET_DEFAULT_HEALTH.sentry, damageReduction: 0, note: getSentryTargetNote('defense') }; } },
+      mobile: { label: '移动姿态' },
+      attack: { label: '进攻姿态' },
+      defense: { label: '防御姿态' },
     },
   },
   engineer: { label: '工程', showProfileSelector: false, showLevelSelector: false, showPostureSelector: false, resolve() { return { maxHealth: TARGET_DEFAULT_HEALTH.engineer, damageReduction: 0, note: '工程目标支持开局防御等特定状态对比 ' }; } },
@@ -682,7 +799,7 @@ const TARGET_CATALOG = {
 
 const DEFAULT_FORM = {
   attackerRole: 'sentry',
-  attackerProfile: 'cooling',
+  attackerProfile: 'auto',
   attackerLevel: 1,
   attackerPosture: 'attack',
   targetRole: 'outpost',
@@ -746,24 +863,56 @@ function getSentryPostureEffects(postureKey, side, currentTime) {
   return createEffect(isSentryPostureDecayed(currentTime) ? sideEffects.decayed : sideEffects.normal);
 }
 
-function getSentryAttackerNote(postureKey) {
-  if (postureKey === 'attack') {
-    return '哨兵进攻姿态按 30/s 基础冷却计算，前 180 秒附带 3 倍冷却增益，之后衰减为 2 倍 ';
-  }
-  if (postureKey === 'defense') {
-    return '哨兵防御姿态按 30/s 冷却计算；若作为受击方，前 180 秒保持 50% 防御，之后衰减为 25% ';
-  }
-  return '哨兵移动姿态按 30/s 冷却计算；若作为受击方，常驻 25% 易伤 ';
+function getSentryProfileStats(profileKey) {
+  return SENTRY_PROFILE_STATS[profileKey] || SENTRY_PROFILE_STATS.auto;
 }
 
-function getSentryTargetNote(postureKey) {
+function getSentryProfileText(profileKey) {
+  const stats = getSentryProfileStats(profileKey);
+  return `${stats.label}配置按 ${stats.maxHealth} 血 / ${stats.maxHeat} 热量上限 / ${stats.coolingRate}/s 冷却 / ${stats.chassisPower}W 底盘功率计算`;
+}
+
+function getSentryAttackerNote(profileKey, postureKey) {
+  const profileText = getSentryProfileText(profileKey);
   if (postureKey === 'attack') {
-    return '哨兵进攻姿态受击时常驻 25% 易伤；若作为攻击方，前 180 秒附带 3 倍冷却增益，之后衰减为 2 倍 ';
+    return `哨兵${profileText}；进攻姿态前 180 秒附带 3 倍冷却增益，之后衰减为 2 倍 `;
   }
   if (postureKey === 'defense') {
-    return '哨兵防御姿态受击时前 180 秒获得 50% 防御，之后衰减为 25% 防御 ';
+    return `哨兵${profileText}；防御姿态若作为受击方，前 180 秒保持 50% 防御，之后衰减为 25% `;
   }
-  return '哨兵移动姿态受击时常驻 25% 易伤 ';
+  return `哨兵${profileText}；移动姿态若作为受击方，常驻 25% 易伤 `;
+}
+
+function getSentryTargetNote(profileKey, postureKey) {
+  const profileText = getSentryProfileText(profileKey);
+  if (postureKey === 'attack') {
+    return `哨兵${profileText}；进攻姿态受击时常驻 25% 易伤，若作为攻击方则前 180 秒附带 3 倍冷却增益，之后衰减为 2 倍 `;
+  }
+  if (postureKey === 'defense') {
+    return `哨兵${profileText}；防御姿态受击时前 180 秒获得 50% 防御，之后衰减为 25% 防御 `;
+  }
+  return `哨兵${profileText}；移动姿态受击时常驻 25% 易伤 `;
+}
+
+function resolveSentryAttacker(profileKey, postureKey) {
+  const stats = getSentryProfileStats(profileKey);
+  return {
+    ammoType: '17mm',
+    heatPerShot: 10,
+    maxHealth: stats.maxHealth,
+    maxHeat: stats.maxHeat,
+    coolingRate: stats.coolingRate,
+    note: getSentryAttackerNote(profileKey, postureKey),
+  };
+}
+
+function resolveSentryTarget(profileKey, postureKey) {
+  const stats = getSentryProfileStats(profileKey);
+  return {
+    maxHealth: stats.maxHealth,
+    damageReduction: 0,
+    note: getSentryTargetNote(profileKey, postureKey),
+  };
 }
 
 function buildEffectBadges(effect) {
@@ -1165,6 +1314,8 @@ function resolveAttacker(form) {
   let resolved;
   if (roleKey === 'drone') {
     resolved = roleConfig.resolve(level);
+  } else if (roleKey === 'sentry') {
+    resolved = resolveSentryAttacker(profileKey, postureKey);
   } else if (roleConfig.showPostureSelector) {
     resolved = roleConfig.postures[postureKey].resolve(level);
   } else {
@@ -1196,7 +1347,9 @@ function resolveTarget(form) {
   const level = roleConfig.showLevelSelector ? clamp(toNumber(form.targetLevel, roleConfig.defaultLevel || 1), 1, 10) : 1;
   const postureKey = roleConfig.showPostureSelector ? (roleConfig.postures[form.targetPosture] ? form.targetPosture : roleConfig.defaultPosture) : '';
   let resolved;
-  if (roleConfig.showPostureSelector) {
+  if (roleKey === 'sentry') {
+    resolved = resolveSentryTarget(profileKey, postureKey);
+  } else if (roleConfig.showPostureSelector) {
     resolved = roleConfig.postures[postureKey].resolve(level);
   } else if (roleConfig.showProfileSelector) {
     resolved = roleConfig.profiles[profileKey].resolve(level);
@@ -1251,6 +1404,7 @@ function buildEffectOptions(effectKeys, schedules, side, ownerKey, durationSec) 
       key: effect.key,
       label: effect.label,
       description: resolvedEffect.description,
+      descriptionSegments: buildDescriptionSegments(resolvedEffect.description),
       badges,
       category: inferEffectCategory(resolvedEffect, badges),
       tone: inferEffectTone(resolvedEffect, badges),
@@ -1364,6 +1518,10 @@ function analyzeDamageLab(form = {}) {
     peakSingleShotDamage = Math.max(peakSingleShotDamage, singleShotDamageNow);
     lastReceiveRatio = effectiveReceiveRatio;
     lastCoolingRate = effectiveCoolingRate;
+    while (nextCoolingTickTime <= currentTime + 1e-9) {
+      heat = Math.max(0, heat - effectiveCoolingRate / 10);
+      nextCoolingTickTime += 0.1;
+    }
     while (nextShotTime <= currentTime + 1e-9) {
       if (heat + attacker.resolved.heatPerShot <= attacker.resolved.maxHeat + 1e-9) {
         totalShots += 1;
@@ -1373,10 +1531,6 @@ function analyzeDamageLab(form = {}) {
         peakHeat = Math.max(peakHeat, heat);
       }
       nextShotTime += shotInterval;
-    }
-    while (nextCoolingTickTime <= currentTime + 1e-9) {
-      heat = Math.max(0, heat - effectiveCoolingRate / 10);
-      nextCoolingTickTime += 0.1;
     }
     totalDamageCurve[index] = totalDamage;
     receivedDamageCurve[index] = totalReceivedDamage;
@@ -1401,17 +1555,17 @@ function analyzeDamageLab(form = {}) {
   }
 
   const outputChart = downsampleSeries(timeAxis, [
-    { key: 'dps', label: 'DPS', color: '#d5543f', values: dpsCurve },
-    { key: 'dpm', label: 'DPM', color: '#2563eb', values: dpmCurve },
-    { key: 'totalDamage', label: '总伤害', color: '#f59f00', values: totalDamageCurve },
+    { key: 'dps', label: 'DPS', color: '#cfff2e', values: dpsCurve },
+    { key: 'dpm', label: 'DPM', color: '#7f45f2', values: dpmCurve },
+    { key: 'totalDamage', label: '总伤害', color: '#b78cff', values: totalDamageCurve },
   ]);
   const heatChart = downsampleSeries(timeAxis, [
-    { key: 'heat', label: '热量', color: '#7c3aed', values: heatCurve },
-    { key: 'shots', label: '累计发弹', color: '#0f9d77', values: shotsCurve },
+    { key: 'heat', label: '热量', color: '#8b56ff', values: heatCurve },
+    { key: 'shots', label: '累计发弹', color: '#c8ff36', values: shotsCurve },
   ]);
   const targetChart = downsampleSeries(timeAxis, [
-    { key: 'receivedDamage', label: '累计受击', color: '#ef4444', values: receivedDamageCurve },
-    { key: 'targetHealth', label: '敌方血量', color: '#16a34a', values: targetHealthCurve },
+    { key: 'receivedDamage', label: '累计受击', color: '#9a69ff', values: receivedDamageCurve },
+    { key: 'targetHealth', label: '敌方血量', color: '#d4ff3a', values: targetHealthCurve },
   ]);
 
   const attackerConfigText = [attacker.profileLabel, attacker.level ? `Lv.${attacker.level}` : '', attacker.postureLabel].filter(Boolean).join(' · ');

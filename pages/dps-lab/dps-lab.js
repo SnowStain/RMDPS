@@ -3,16 +3,20 @@ const { renderChart } = require('./lib/damage-lab-chart');
 
 const LIGHT_THEME = {
   canvasBg: 'transparent',
-  textColor: '#11131a',
-  axisColor: 'rgba(17, 19, 26, 0.24)',
-  gridColor: 'rgba(145, 76, 255, 0.12)',
+  textColor: '#6f37dd',
+  tickColor: '#7f45f2',
+  tickAccentColor: '#9fd92b',
+  axisColor: 'rgba(127, 69, 242, 0.22)',
+  gridColor: 'rgba(145, 76, 255, 0.16)',
 };
 
 const DARK_THEME = {
   canvasBg: 'transparent',
-  textColor: '#f8fbff',
-  axisColor: 'rgba(194, 255, 18, 0.3)',
-  gridColor: 'rgba(145, 76, 255, 0.18)',
+  textColor: '#c18cff',
+  tickColor: '#b78cff',
+  tickAccentColor: '#d4ff3a',
+  axisColor: 'rgba(194, 255, 18, 0.24)',
+  gridColor: 'rgba(145, 76, 255, 0.20)',
 };
 
 const TIMELINE_SNAP_THRESHOLD_RATIO = 0.018;
@@ -21,13 +25,14 @@ const TIMELINE_SNAP_THRESHOLD_MAX_SEC = 1.2;
 const PAGE_EDGE_SQUISH_RANGE_PX = 84;
 const PAGE_EDGE_SQUISH_MAX_SHIFT_PX = 5;
 const PAGE_EDGE_SQUISH_MIN_SCALE_Y = 0.988;
+const PAGE_GRID_COLUMN_COUNT = 8;
 const PORTRAIT_STAGE_BASE_PX = 148;
-const PORTRAIT_STAGE_MAX_RATIO = 0.72;
-const PORTRAIT_STAGE_MAX_REVEAL_PX = 620;
+const PORTRAIT_STAGE_MAX_RATIO = 0.82;
+const PORTRAIT_STAGE_MAX_REVEAL_PX = 720;
 const PORTRAIT_STAGE_SNAP_RATIO = 0.48;
-const PORTRAIT_HANDLE_HEIGHT_PX = 74;
-const PORTRAIT_HANDLE_MIN_TOP_PX = 142;
-const PORTRAIT_HANDLE_FOLLOW_OFFSET_PX = 18;
+const PORTRAIT_DRAGGER_HEIGHT_PX = 144;
+const PORTRAIT_DRAGGER_MIN_TOP_PX = 18;
+const PORTRAIT_DRAGGER_MAX_TOP_PX = 92;
 const LOGO_MULTI_TAP_TARGET = 5;
 const LOGO_MULTI_TAP_RESET_MS = 1800;
 const BILIBILI_PROFILE_URL = 'https://space.bilibili.com/645940972';
@@ -248,16 +253,40 @@ function getTouchCenterRatio(touches = [], rect) {
 function getPortraitHandleTopPx(stageHeightPx, windowHeight, pageTopInsetPx) {
   const safeWindowHeight = Math.max(320, Number(windowHeight) || 812);
   const safePageTopInsetPx = Math.max(0, Number(pageTopInsetPx) || 0);
-  const preferredTopPx = Number(stageHeightPx) - PORTRAIT_HANDLE_FOLLOW_OFFSET_PX;
+  const preferredTopPx = PORTRAIT_DRAGGER_MIN_TOP_PX + (Math.max(PORTRAIT_STAGE_BASE_PX, Number(stageHeightPx) || PORTRAIT_STAGE_BASE_PX) - PORTRAIT_STAGE_BASE_PX) * 0.16;
   const maxTopPx = Math.max(
-    PORTRAIT_HANDLE_MIN_TOP_PX,
-    safeWindowHeight - safePageTopInsetPx - PORTRAIT_HANDLE_HEIGHT_PX - 12,
+    PORTRAIT_DRAGGER_MIN_TOP_PX,
+    Math.min(
+      PORTRAIT_DRAGGER_MAX_TOP_PX,
+      safeWindowHeight - safePageTopInsetPx - PORTRAIT_DRAGGER_HEIGHT_PX - 16,
+    ),
   );
 
-  return Math.round(clamp(preferredTopPx, PORTRAIT_HANDLE_MIN_TOP_PX, maxTopPx));
+  return Math.round(clamp(preferredTopPx, PORTRAIT_DRAGGER_MIN_TOP_PX, maxTopPx));
 }
 
-function buildPortraitRevealState(revealOffsetPx, maxRevealPx, windowHeight, pageTopInsetPx) {
+function getPortraitFrostOpacity(revealProgress, contentFocusProgress) {
+  const safeRevealProgress = clamp(Number(revealProgress) || 0, 0, 1);
+  const safeContentFocusProgress = clamp(Number(contentFocusProgress) || 0, 0, 1);
+  const baseOpacity = 0.14 + safeContentFocusProgress * 0.16 - safeRevealProgress * 0.30;
+  return Number(clamp(baseOpacity, 0, 0.32).toFixed(3));
+}
+
+function getScrollReactiveVisualState(scrollTop, stageHeightPx, revealProgress) {
+  const safeScrollTop = Math.max(0, Number(scrollTop) || 0);
+  const safeStageHeightPx = Math.max(PORTRAIT_STAGE_BASE_PX, Number(stageHeightPx) || PORTRAIT_STAGE_BASE_PX);
+  const stickyThresholdPx = Math.max(36, safeStageHeightPx - 84);
+  const contentFocusStartPx = Math.max(24, safeStageHeightPx - 24);
+  const contentFocusProgress = clamp((safeScrollTop - contentFocusStartPx) / 180, 0, 1);
+
+  return {
+    showFloatingStageTitle: safeScrollTop >= stickyThresholdPx,
+    contentFocusProgress: Number(contentFocusProgress.toFixed(4)),
+    portraitFrostOpacity: getPortraitFrostOpacity(revealProgress, contentFocusProgress),
+  };
+}
+
+function buildPortraitRevealState(revealOffsetPx, maxRevealPx, windowHeight, pageTopInsetPx, contentFocusProgress) {
   const safeMaxRevealPx = Math.max(1, Number(maxRevealPx) || 1);
   const safeRevealOffsetPx = clamp(Number(revealOffsetPx) || 0, 0, safeMaxRevealPx);
   const progress = safeRevealOffsetPx / safeMaxRevealPx;
@@ -267,12 +296,18 @@ function buildPortraitRevealState(revealOffsetPx, maxRevealPx, windowHeight, pag
     portraitRevealOffsetPx: Number(safeRevealOffsetPx.toFixed(1)),
     portraitRevealProgress: Number(progress.toFixed(4)),
     portraitStageHeightPx,
-    portraitArtScale: Number((1.04 - progress * 0.01).toFixed(4)),
-    portraitArtShiftY: Number((34 + progress * 12).toFixed(2)),
-    portraitShadeOpacity: Number((0.56 - progress * 0.20).toFixed(3)),
-    portraitFrostOpacity: Number((0.24 - progress * 0.24).toFixed(3)),
+    portraitArtScale: Number((1.08 - progress * 0.08).toFixed(4)),
+    portraitArtShiftY: Number((22 + progress * 20).toFixed(2)),
+    portraitShadeOpacity: Number((0.64 - progress * 0.48).toFixed(3)),
+    portraitFrostOpacity: getPortraitFrostOpacity(progress, contentFocusProgress),
+    portraitArtBlurPx: Number((2.6 - progress * 2.6).toFixed(2)),
+    portraitArtSaturate: Number((0.9 + progress * 0.14).toFixed(3)),
+    portraitArtBrightness: Number((0.93 + progress * 0.1).toFixed(3)),
+    portraitArtImageOpacity: Number((0.9 + progress * 0.1).toFixed(3)),
+    portraitArtGridOpacity: Number((0.26 - progress * 0.18).toFixed(3)),
+    portraitArtBlendOpacity: Number((0.52 - progress * 0.42).toFixed(3)),
     portraitHandleTopPx: getPortraitHandleTopPx(portraitStageHeightPx, windowHeight, pageTopInsetPx),
-    portraitRevealHint: progress >= 0.68 ? '' : '',
+    portraitRevealHint: progress >= 0.68 ? '上推收起背景' : '下拉展开背景',
   };
 }
 
@@ -288,7 +323,9 @@ const INITIAL_THEME = getSystemTheme(INITIAL_WINDOW_INFO);
 const INITIAL_STATUS_BAR_HEIGHT = INITIAL_WINDOW_INFO && INITIAL_WINDOW_INFO.statusBarHeight
   ? INITIAL_WINDOW_INFO.statusBarHeight
   : 24;
+const INITIAL_WINDOW_WIDTH = (INITIAL_WINDOW_INFO && INITIAL_WINDOW_INFO.windowWidth) || 375;
 const INITIAL_CHART_WIDTH = Math.max(300, ((INITIAL_WINDOW_INFO && INITIAL_WINDOW_INFO.windowWidth) || 375) - 44);
+const INITIAL_PAGE_GRID_CELL_PX = Number((INITIAL_WINDOW_WIDTH / PAGE_GRID_COLUMN_COUNT).toFixed(2));
 
 Page({
   data: Object.assign(
@@ -298,18 +335,29 @@ Page({
       chartWidth: INITIAL_CHART_WIDTH,
       chartHeight: 220,
       pageTopInsetPx: INITIAL_STATUS_BAR_HEIGHT + 10,
+      pageGridCellPx: INITIAL_PAGE_GRID_CELL_PX,
+      pageGridOffsetPx: 0,
+      floatingStageTitleTopPx: INITIAL_STATUS_BAR_HEIGHT + 6,
       scrollShiftY: 0,
       scrollScaleY: 1,
       portraitRevealMaxPx: 420,
       portraitRevealOffsetPx: 0,
       portraitRevealProgress: 0,
       portraitStageHeightPx: PORTRAIT_STAGE_BASE_PX,
-      portraitArtScale: 1.04,
-      portraitArtShiftY: 34,
-      portraitShadeOpacity: 0.56,
-      portraitFrostOpacity: 0.24,
-      portraitHandleTopPx: PORTRAIT_HANDLE_MIN_TOP_PX,
+      portraitArtScale: 1.08,
+      portraitArtShiftY: 22,
+      portraitShadeOpacity: 0.64,
+      portraitFrostOpacity: 0.14,
+      portraitArtBlurPx: 2.6,
+      portraitArtSaturate: 0.9,
+      portraitArtBrightness: 0.93,
+      portraitArtImageOpacity: 0.9,
+      portraitArtGridOpacity: 0.26,
+      portraitArtBlendOpacity: 0.52,
+      portraitHandleTopPx: PORTRAIT_DRAGGER_MIN_TOP_PX,
       portraitRevealHint: '下拉展开',
+      contentFocusProgress: 0,
+      showFloatingStageTitle: false,
       darkLogo: '/ARTINX DPS 1.webp',
       lightLogo: '/ARTINX DPS 2.webp',
       activeTimelineTrackId: '',
@@ -330,10 +378,15 @@ Page({
     const windowInfo = getInitialWindowInfo() || INITIAL_WINDOW_INFO || {};
     const menuButtonRect = getMenuButtonRect();
     const chartWidth = Math.max(300, (windowInfo.windowWidth || 375) - 44);
+    const pageGridCellPx = Number((((windowInfo.windowWidth || INITIAL_WINDOW_WIDTH) / PAGE_GRID_COLUMN_COUNT)).toFixed(2));
     this.windowHeight = windowInfo.windowHeight || 812;
     const pageTopInsetPx = Math.max(
       (windowInfo.statusBarHeight || 24) + 10,
       menuButtonRect && menuButtonRect.bottom ? Math.round(menuButtonRect.bottom + 12) : 0,
+    );
+    const floatingStageTitleTopPx = Math.max(
+      (windowInfo.statusBarHeight || 24) + 8,
+      pageTopInsetPx - 12,
     );
     const portraitRevealMaxPx = Math.min(
       PORTRAIT_STAGE_MAX_REVEAL_PX,
@@ -353,8 +406,11 @@ Page({
       statusBarHeight: windowInfo.statusBarHeight || 24,
       chartWidth,
       pageTopInsetPx,
+      pageGridCellPx,
+      pageGridOffsetPx: 0,
+      floatingStageTitleTopPx,
       portraitRevealMaxPx,
-      ...buildPortraitRevealState(0, portraitRevealMaxPx, this.windowHeight, pageTopInsetPx),
+      ...buildPortraitRevealState(0, portraitRevealMaxPx, this.windowHeight, pageTopInsetPx, 0),
     }, () => {
       this.refreshPageState(this.data.form);
     });
@@ -383,14 +439,28 @@ Page({
     const activeProgress = Math.max(topProgress, bottomProgress);
     const nextShiftY = Number(((topProgress - bottomProgress) * PAGE_EDGE_SQUISH_MAX_SHIFT_PX).toFixed(2));
     const nextScaleY = Number((1 - activeProgress * (1 - PAGE_EDGE_SQUISH_MIN_SCALE_Y)).toFixed(4));
+    const scrollReactiveState = getScrollReactiveVisualState(
+      scrollTop,
+      this.data.portraitStageHeightPx,
+      this.data.portraitRevealProgress,
+    );
 
-    if (Math.abs(nextShiftY - this.data.scrollShiftY) < 0.01 && Math.abs(nextScaleY - this.data.scrollScaleY) < 0.0005) {
+    if (
+      Math.abs(nextShiftY - this.data.scrollShiftY) < 0.01
+      && Math.abs(nextScaleY - this.data.scrollScaleY) < 0.0005
+      && Math.abs(scrollReactiveState.contentFocusProgress - this.data.contentFocusProgress) < 0.0005
+      && Math.abs(scrollReactiveState.portraitFrostOpacity - this.data.portraitFrostOpacity) < 0.001
+      && scrollReactiveState.showFloatingStageTitle === this.data.showFloatingStageTitle
+    ) {
       return;
     }
 
     this.setData({
       scrollShiftY: nextShiftY,
       scrollScaleY: nextScaleY,
+      contentFocusProgress: scrollReactiveState.contentFocusProgress,
+      portraitFrostOpacity: scrollReactiveState.portraitFrostOpacity,
+      showFloatingStageTitle: scrollReactiveState.showFloatingStageTitle,
     });
   },
 
@@ -446,6 +516,7 @@ Page({
         this.data.portraitRevealMaxPx,
         this.windowHeight,
         this.data.pageTopInsetPx,
+        this.data.contentFocusProgress,
       ),
       callback,
     );
@@ -544,6 +615,23 @@ Page({
     this.setData(Object.assign({}, createDefaultPageState(), {
       scrollShiftY: 0,
       scrollScaleY: 1,
+      portraitRevealOffsetPx: 0,
+      portraitRevealProgress: 0,
+      portraitStageHeightPx: PORTRAIT_STAGE_BASE_PX,
+      portraitArtScale: 1.08,
+      portraitArtShiftY: 22,
+      portraitShadeOpacity: 0.64,
+      portraitFrostOpacity: getPortraitFrostOpacity(0, 0),
+      portraitArtBlurPx: 2.6,
+      portraitArtSaturate: 0.9,
+      portraitArtBrightness: 0.93,
+      portraitArtImageOpacity: 0.9,
+      portraitArtGridOpacity: 0.26,
+      portraitArtBlendOpacity: 0.52,
+      portraitHandleTopPx: getPortraitHandleTopPx(PORTRAIT_STAGE_BASE_PX, this.windowHeight, this.data.pageTopInsetPx),
+      portraitRevealHint: '下拉展开',
+      contentFocusProgress: 0,
+      showFloatingStageTitle: false,
       activeTimelineTrackId: '',
       activeTimelineTrackSide: '',
     }), () => {
