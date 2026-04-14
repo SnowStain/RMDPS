@@ -6,6 +6,8 @@
   <view class="page-orbit orbit-one"></view>
   <view class="page-orbit orbit-two"></view>
 
+  <view class="page-content" style="transform: translate3d(0, {{scrollShiftY}}px, 0) scaleX({{scrollScaleX}}) scaleY({{scrollScaleY}});">
+
   <view class="hero-card">
     <view class="hero-top">
       <view class="hero-brand">
@@ -84,7 +86,7 @@
         </view>
         <view class="control-slider-shell shell-duration">
           <view class="control-slider-rail"></view>
-          <slider class="control-slider slider-duration" min="15" max="240" step="5" block-size="24" block-color="#ffffff" value="{{form.durationSec}}" activeColor="#ff7b4a" backgroundColor="rgba(0, 0, 0, 0)" bindchange="onDurationChange" />
+          <slider class="control-slider slider-duration" min="15" max="240" step="5" block-size="24" block-color="#ffffff" value="{{form.durationSec}}" activeColor="#ff9954" backgroundColor="rgba(0, 0, 0, 0)" bindchange="onDurationChange" />
         </view>
         <view class="mini-slider top-gap">
           <text class="mini-label">请求射速</text>
@@ -95,7 +97,7 @@
         </view>
         <view class="control-slider-shell shell-fire">
           <view class="control-slider-rail"></view>
-          <slider class="control-slider slider-fire" min="0" max="30" step="0.5" block-size="24" block-color="#ffffff" value="{{form.requestedFireRateHz}}" activeColor="#397eff" backgroundColor="rgba(0, 0, 0, 0)" bindchange="onFireRateChange" />
+          <slider class="control-slider slider-fire" min="0" max="30" step="0.5" block-size="24" block-color="#ffffff" value="{{form.requestedFireRateHz}}" activeColor="#58a6ff" backgroundColor="rgba(0, 0, 0, 0)" bindchange="onFireRateChange" />
         </view>
         <view class="mini-slider top-gap">
           <text class="mini-label">命中率</text>
@@ -106,7 +108,7 @@
         </view>
         <view class="control-slider-shell shell-hit">
           <view class="control-slider-rail"></view>
-          <slider class="control-slider slider-hit" min="0" max="100" step="5" block-size="24" block-color="#ffffff" value="{{form.hitRatePercent}}" activeColor="#00a67f" backgroundColor="rgba(0, 0, 0, 0)" bindchange="onHitRateChange" />
+          <slider class="control-slider slider-hit" min="0" max="100" step="5" block-size="24" block-color="#ffffff" value="{{form.hitRatePercent}}" activeColor="#2ed6ac" backgroundColor="rgba(0, 0, 0, 0)" bindchange="onHitRateChange" />
         </view>
         <view class="mini-slider top-gap">
           <text class="mini-label">初始热量</text>
@@ -117,7 +119,7 @@
         </view>
         <view class="control-slider-shell shell-heat">
           <view class="control-slider-rail"></view>
-          <slider class="control-slider slider-heat" min="0" max="300" step="10" block-size="24" block-color="#ffffff" value="{{form.initialHeat}}" activeColor="#8b5cf6" backgroundColor="rgba(0, 0, 0, 0)" bindchange="onHeatChange" />
+          <slider class="control-slider slider-heat" min="0" max="300" step="10" block-size="24" block-color="#ffffff" value="{{form.initialHeat}}" activeColor="#b68cff" backgroundColor="rgba(0, 0, 0, 0)" bindchange="onHeatChange" />
         </view>
       </view>
       <view class="field-item full-span field-note">
@@ -181,6 +183,24 @@
         <view class="field-item field-item-half">
           <text class="field-label">当前血量</text>
           <text class="picker-value">{{analysis.resolved.currentTargetHealth}} / {{analysis.resolved.maxTargetHealth}}</text>
+        </view>
+      </view>
+      <view class="field-item full-span control-cluster" wx:if="{{showOutpostWindowControl}}">
+        <view class="mini-slider">
+          <text class="mini-label">前哨可攻击窗口</text>
+          <view class="mini-value-input">
+            <input class="slider-input" type="digit" value="{{form.targetWindowDegrees}}" bindblur="onOutpostWindowInputCommit" bindconfirm="onOutpostWindowInputCommit" />
+            <text class="slider-input-suffix">deg</text>
+          </view>
+        </view>
+        <view class="control-slider-shell shell-window">
+          <view class="control-slider-rail"></view>
+          <slider class="control-slider slider-window" min="0" max="360" step="5" block-size="24" block-color="#ffffff" value="{{form.targetWindowDegrees}}" activeColor="#ffd166" backgroundColor="rgba(0, 0, 0, 0)" bindchange="onOutpostWindowChange" />
+        </view>
+        <view class="range-labels">
+          <text>0°</text>
+          <text>窗口折算 {{analysis.resolved.outpostWindowRatioText}}</text>
+          <text>360°</text>
         </view>
       </view>
       <view class="field-item full-span slider-wrap">
@@ -282,7 +302,8 @@
           <view class="timeline-track-fill timeline-track-fill-draggable {{activeTimelineTrackId === item.effectKey && activeTimelineTrackSide === 'attacker' ? 'timeline-track-active' : ''}}" style="left: {{item.startPercent}}%; width: {{item.spanPercent}}%;" data-side="attacker" data-effect-key="{{item.effectKey}}" catchtouchstart="onTimelineDragStart" catchtouchmove="onTimelineDragMove" catchtouchend="onTimelineDragEnd" catchtouchcancel="onTimelineDragEnd">
             <view class="timeline-track-segments">
               <view wx:if="{{item.hasPreSimSegment}}" class="timeline-track-segment timeline-track-segment-pre" style="width: {{item.preSimPercent}}%;"></view>
-              <view class="timeline-track-segment timeline-track-segment-main" style="left: {{item.preSimPercent}}%; width: {{item.simPercent}}%;"></view>
+              <view class="timeline-track-segment timeline-track-segment-main" style="left: {{item.simOffsetPercent}}%; width: {{item.simPercent}}%;"></view>
+              <view wx:if="{{item.hasPostSimSegment}}" class="timeline-track-segment timeline-track-segment-post" style="left: {{item.postSimOffsetPercent}}%; width: {{item.postSimPercent}}%;"></view>
             </view>
             <view class="timeline-track-handle"></view>
           </view>
@@ -320,7 +341,8 @@
           <view class="timeline-track-fill timeline-track-fill-draggable target-track-fill {{activeTimelineTrackId === item.effectKey && activeTimelineTrackSide === 'target' ? 'timeline-track-active' : ''}}" style="left: {{item.startPercent}}%; width: {{item.spanPercent}}%;" data-side="target" data-effect-key="{{item.effectKey}}" catchtouchstart="onTimelineDragStart" catchtouchmove="onTimelineDragMove" catchtouchend="onTimelineDragEnd" catchtouchcancel="onTimelineDragEnd">
             <view class="timeline-track-segments">
               <view wx:if="{{item.hasPreSimSegment}}" class="timeline-track-segment timeline-track-segment-pre target-track-segment-pre" style="width: {{item.preSimPercent}}%;"></view>
-              <view class="timeline-track-segment timeline-track-segment-main target-track-segment-main" style="left: {{item.preSimPercent}}%; width: {{item.simPercent}}%;"></view>
+              <view class="timeline-track-segment timeline-track-segment-main target-track-segment-main" style="left: {{item.simOffsetPercent}}%; width: {{item.simPercent}}%;"></view>
+              <view wx:if="{{item.hasPostSimSegment}}" class="timeline-track-segment timeline-track-segment-post target-track-segment-post" style="left: {{item.postSimOffsetPercent}}%; width: {{item.postSimPercent}}%;"></view>
             </view>
             <view class="timeline-track-handle"></view>
           </view>
@@ -361,6 +383,10 @@
         </view>
       </view>
       <text class="summary-line" wx:for="{{analysis.summaryLines}}" wx:key="*this">{{item}}</text>
+    </view>
+    <view class="summary-box taunt-box" wx:if="{{analysis.taunt && analysis.taunt.lines && analysis.taunt.lines.length}}">
+      <text class="taunt-title">{{analysis.taunt.title}}</text>
+      <text class="taunt-line" wx:for="{{analysis.taunt.lines}}" wx:key="*this">{{item}}</text>
     </view>
   </view>
 
@@ -430,5 +456,6 @@
         <canvas canvas-id="targetChart" class="chart-canvas" style="width: {{chartWidth}}px; height: {{chartHeight}}px;" width="{{chartWidth}}" height="{{chartHeight}}"></canvas>
       </view>
     </view>
+  </view>
   </view>
 </view>

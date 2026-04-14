@@ -15,6 +15,11 @@ const DARK_THEME = {
   gridColor: 'rgba(238, 244, 255, 0.08)',
 };
 
+const TIMELINE_SNAP_THRESHOLD_RATIO = 0.018;
+const TIMELINE_SNAP_THRESHOLD_MIN_SEC = 0.35;
+const TIMELINE_SNAP_THRESHOLD_MAX_SEC = 1.2;
+const SCROLL_SQUISH_DELTA_LIMIT = 36;
+
 function getInitialWindowInfo() {
   try {
     if (typeof wx !== 'undefined' && wx.getWindowInfo) {
@@ -33,12 +38,53 @@ function mergeForm(currentForm, patch) {
   return Object.assign({}, currentForm, patch);
 }
 
+function getDefaultOutpostWindowDegrees(attackerRole) {
+  return attackerRole === 'hero' ? 360 : 120;
+}
+
 function createDefaultViewport() {
   return { start: 0, end: 1 };
 }
 
 function formatTimelineRangeText(startSec, endSec) {
   return `${startSec.toFixed(1)}s - ${endSec.toFixed(1)}s`;
+}
+
+function getTimelineSnapThreshold(meta) {
+  const baseSpan = Math.max(1, Number(meta && meta.simulationEndSec) || Number(meta && meta.timelineMax) - Number(meta && meta.timelineMin));
+  return clamp(baseSpan * TIMELINE_SNAP_THRESHOLD_RATIO, TIMELINE_SNAP_THRESHOLD_MIN_SEC, TIMELINE_SNAP_THRESHOLD_MAX_SEC);
+}
+
+function snapTimelineRange(startSec, durationSec, meta) {
+  const safeDurationSec = Math.max(0, Number(durationSec) || 0);
+  const minStartSec = Number(meta && meta.timelineMin) || 0;
+  const maxStartSec = (Number(meta && meta.timelineMax) || 0) - safeDurationSec;
+  const simulationEndSec = Number(meta && meta.simulationEndSec) || 0;
+  const thresholdSec = getTimelineSnapThreshold(meta);
+  let nextStartSec = clamp(startSec, minStartSec, maxStartSec);
+
+  if (Math.abs(nextStartSec - minStartSec) <= thresholdSec) {
+    nextStartSec = minStartSec;
+  }
+  if (Math.abs(nextStartSec) <= thresholdSec) {
+    nextStartSec = 0;
+  }
+
+  let nextEndSec = nextStartSec + safeDurationSec;
+  if (Math.abs(nextEndSec - simulationEndSec) <= thresholdSec) {
+    nextEndSec = simulationEndSec;
+    nextStartSec = nextEndSec - safeDurationSec;
+  }
+  if (Math.abs(nextEndSec - (Number(meta && meta.timelineMax) || 0)) <= thresholdSec) {
+    nextEndSec = Number(meta && meta.timelineMax) || 0;
+    nextStartSec = nextEndSec - safeDurationSec;
+  }
+
+  nextStartSec = clamp(nextStartSec, minStartSec, maxStartSec);
+  return {
+    startSec: Number(nextStartSec.toFixed(1)),
+    endSec: Number((nextStartSec + safeDurationSec).toFixed(1)),
+  };
 }
 
 function getTrackDurationSec(track) {
@@ -94,9 +140,14 @@ function buildTimelinePreviewPatch(state, side, effectKey, startSec, endSec) {
   const endPercent = (nextEndSec - timelineMin) / totalSpan * 100;
   const timingText = formatTimelineRangeText(startSec, nextEndSec);
   const nextDurationSec = durationSec;
+  const simulationEndSec = Number(state && state.form && state.form.durationSec) || 0;
   const totalDurationSec = Math.max(0.1, nextEndSec - startSec);
   const preSimDurationSec = Math.max(0, Math.min(nextEndSec, 0) - startSec);
-  const simDurationSec = Math.max(0, nextEndSec - Math.max(startSec, 0));
+  const simDurationSec = Math.max(0, Math.min(nextEndSec, simulationEndSec) - Math.max(startSec, 0));
+  const postSimDurationSec = Math.max(0, nextEndSec - Math.max(startSec, simulationEndSec));
+  const preSimPercent = Number((preSimDurationSec / totalDurationSec * 100).toFixed(3));
+  const simPercent = Number((simDurationSec / totalDurationSec * 100).toFixed(3));
+  const postSimPercent = Number((postSimDurationSec / totalDurationSec * 100).toFixed(3));
   const patch = {
     [`${tracksKey}[${trackIndex}].startSec`]: startSec,
     [`${tracksKey}[${trackIndex}].endSec`]: nextEndSec,
@@ -106,9 +157,14 @@ function buildTimelinePreviewPatch(state, side, effectKey, startSec, endSec) {
     [`${tracksKey}[${trackIndex}].durationSec`]: nextDurationSec,
     [`${tracksKey}[${trackIndex}].preSimDurationSec`]: Number(preSimDurationSec.toFixed(1)),
     [`${tracksKey}[${trackIndex}].simDurationSec`]: Number(simDurationSec.toFixed(1)),
-    [`${tracksKey}[${trackIndex}].preSimPercent`]: Number((preSimDurationSec / totalDurationSec * 100).toFixed(3)),
-    [`${tracksKey}[${trackIndex}].simPercent`]: Number((simDurationSec / totalDurationSec * 100).toFixed(3)),
+    [`${tracksKey}[${trackIndex}].postSimDurationSec`]: Number(postSimDurationSec.toFixed(1)),
+    [`${tracksKey}[${trackIndex}].preSimPercent`]: preSimPercent,
+    [`${tracksKey}[${trackIndex}].simPercent`]: simPercent,
+    [`${tracksKey}[${trackIndex}].postSimPercent`]: postSimPercent,
+    [`${tracksKey}[${trackIndex}].simOffsetPercent`]: preSimPercent,
+    [`${tracksKey}[${trackIndex}].postSimOffsetPercent`]: Number((preSimPercent + simPercent).toFixed(3)),
     [`${tracksKey}[${trackIndex}].hasPreSimSegment`]: preSimDurationSec > 0,
+    [`${tracksKey}[${trackIndex}].hasPostSimSegment`]: postSimDurationSec > 0,
     [`${tracksKey}[${trackIndex}].timingText`]: timingText,
   };
 
@@ -183,6 +239,9 @@ Page({
       statusBarHeight: INITIAL_STATUS_BAR_HEIGHT,
       chartWidth: INITIAL_CHART_WIDTH,
       chartHeight: 220,
+      scrollShiftY: 0,
+      scrollScaleX: 1,
+      scrollScaleY: 1,
       darkLogo: '/ARTINX DPS 1.webp',
       lightLogo: '/ARTINX DPS 2.webp',
       activeTimelineTrackId: '',
@@ -195,6 +254,8 @@ Page({
     this.chartViewport = createDefaultViewport();
     this.chartGesture = null;
     this.timelineDrag = null;
+    this.scrollMotionResetTimer = null;
+    this.lastScrollTop = 0;
     const windowInfo = getInitialWindowInfo() || INITIAL_WINDOW_INFO || {};
     const chartWidth = Math.max(300, (windowInfo.windowWidth || 375) - 44);
     this.themeChangeHandler = (event) => {
@@ -218,6 +279,42 @@ Page({
     if (wx.offThemeChange && this.themeChangeHandler) {
       wx.offThemeChange(this.themeChangeHandler);
     }
+    if (this.scrollMotionResetTimer) {
+      clearTimeout(this.scrollMotionResetTimer);
+      this.scrollMotionResetTimer = null;
+    }
+  },
+
+  onPageScroll(event) {
+    const scrollTop = Number(event && event.scrollTop) || 0;
+    const delta = scrollTop - (this.lastScrollTop || 0);
+    this.lastScrollTop = scrollTop;
+    const limitedDelta = clamp(delta, -SCROLL_SQUISH_DELTA_LIMIT, SCROLL_SQUISH_DELTA_LIMIT);
+    const magnitude = Math.abs(limitedDelta);
+    if (magnitude < 0.5) {
+      return;
+    }
+
+    const nextShiftY = Number(clamp(-limitedDelta * 0.12, -4.5, 4.5).toFixed(2));
+    const nextScaleX = Number((1 + magnitude * 0.0012).toFixed(4));
+    const nextScaleY = Number((1 - magnitude * 0.00075).toFixed(4));
+    this.setData({
+      scrollShiftY: nextShiftY,
+      scrollScaleX: nextScaleX,
+      scrollScaleY: nextScaleY,
+    });
+
+    if (this.scrollMotionResetTimer) {
+      clearTimeout(this.scrollMotionResetTimer);
+    }
+    this.scrollMotionResetTimer = setTimeout(() => {
+      this.setData({
+        scrollShiftY: 0,
+        scrollScaleX: 1,
+        scrollScaleY: 1,
+      });
+      this.scrollMotionResetTimer = null;
+    }, 140);
   },
 
   getThemePalette() {
@@ -264,6 +361,9 @@ Page({
     this.chartGesture = null;
     this.timelineDrag = null;
     this.setData(Object.assign({}, createDefaultPageState(), {
+      scrollShiftY: 0,
+      scrollScaleX: 1,
+      scrollScaleY: 1,
       activeTimelineTrackId: '',
       activeTimelineTrackSide: '',
     }), () => {
@@ -302,6 +402,7 @@ Page({
           endSec: track.endSec,
           timelineMin: track.timelineMin,
           timelineMax: track.timelineMax,
+          simulationEndSec: Number(this.data.form && this.data.form.durationSec) || 0,
           durationSec: getTrackDurationSec(track),
           fixedDurationSec: Number(track.fixedDurationSec) || 0,
           touchOffsetSec: touchTime - track.startSec,
@@ -324,9 +425,10 @@ Page({
     const ratio = clamp((touchX - this.timelineDrag.rect.left) / this.timelineDrag.rect.width, 0, 1);
     const touchTime = this.timelineDrag.timelineMin + ratio * (this.timelineDrag.timelineMax - this.timelineDrag.timelineMin);
     const durationSec = Math.max(0, this.timelineDrag.fixedDurationSec || this.timelineDrag.durationSec);
-    const startSec = clamp(touchTime - this.timelineDrag.touchOffsetSec, this.timelineDrag.timelineMin, this.timelineDrag.timelineMax - durationSec);
-    const nextStartSec = Number(startSec.toFixed(1));
-    const nextEndSec = Number((startSec + durationSec).toFixed(1));
+    const rawStartSec = clamp(touchTime - this.timelineDrag.touchOffsetSec, this.timelineDrag.timelineMin, this.timelineDrag.timelineMax - durationSec);
+    const snappedRange = snapTimelineRange(rawStartSec, durationSec, this.timelineDrag);
+    const nextStartSec = snappedRange.startSec;
+    const nextEndSec = snappedRange.endSec;
     if (nextStartSec === this.timelineDrag.startSec && nextEndSec === this.timelineDrag.endSec) {
       return;
     }
@@ -375,13 +477,17 @@ Page({
 
   onAttackerRoleChange(event) {
     const role = this.data.attackerRoleOptions[Number(event.detail.value)];
-    this.refreshPageState(mergeForm(this.data.form, {
+    const patch = {
       attackerRole: role.key,
       attackerProfile: '',
       attackerLevel: 1,
       attackerPosture: 'mobile',
       attackerEffects: [],
-    }));
+    };
+    if (this.data.form.targetRole === 'outpost') {
+      patch.targetWindowDegrees = getDefaultOutpostWindowDegrees(role.key);
+    }
+    this.refreshPageState(mergeForm(this.data.form, patch));
   },
 
   onAttackerProfileChange(event) {
@@ -401,13 +507,17 @@ Page({
 
   onTargetRoleChange(event) {
     const role = this.data.targetRoleOptions[Number(event.detail.value)];
-    this.refreshPageState(mergeForm(this.data.form, {
+    const patch = {
       targetRole: role.key,
       targetProfile: '',
       targetLevel: 1,
       targetPosture: 'mobile',
       targetEffects: [],
-    }));
+    };
+    if (role.key === 'outpost') {
+      patch.targetWindowDegrees = getDefaultOutpostWindowDegrees(this.data.form.attackerRole);
+    }
+    this.refreshPageState(mergeForm(this.data.form, patch));
   },
 
   onTargetProfileChange(event) {
@@ -428,6 +538,15 @@ Page({
   onTargetPartChange(event) {
     const option = this.data.targetPartOptions[Number(event.detail.value)];
     this.refreshPageState(mergeForm(this.data.form, { targetPart: option.key }));
+  },
+
+  onOutpostWindowChange(event) {
+    this.refreshPageState(mergeForm(this.data.form, { targetWindowDegrees: event.detail.value }));
+  },
+
+  onOutpostWindowInputCommit(event) {
+    const value = normalizeNumericValue(event.detail.value, this.data.form.targetWindowDegrees, 0, 360, 5);
+    this.refreshPageState(mergeForm(this.data.form, { targetWindowDegrees: value }));
   },
 
   onDurationChange(event) {

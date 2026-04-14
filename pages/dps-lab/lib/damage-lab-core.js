@@ -2,6 +2,59 @@ const SAFE_MODEL_NOTE = '增益按时间轨道生效 ';
 const STACKING_NOTE = '同类增益按最大有效值合并 ';
 const BASE_FIRE_RATE_HZ = 15.0;
 const CHART_MAX_POINTS = 200;
+const OUTPOST_WINDOW_MIN_DEG = 0;
+const OUTPOST_WINDOW_MAX_DEG = 360;
+const OUTPOST_WINDOW_STEP_DEG = 5;
+
+const OUTPOST_WINDOW_DEFAULT_BY_ATTACKER = {
+  hero: 360,
+  infantry: 120,
+  sentry: 120,
+  drone: 120,
+};
+
+const RESULT_TAUNT_LIBRARY = {
+  quick: [
+    '这就是数值吗，吓哭了',
+    '血条归零比你挂科还快，对面纯纯经验包',
+    '对手：妈妈，对面在打我；妈妈，对面把我秒了',
+    '省流：动力强劲',
+    '这TTK，对面买活都是浪费金币',
+  ],
+  clean: [
+    '输出丝滑，让对面一个接着一个来排队暴毙吧',
+    '每一发都精准打脸，对面连挣扎都显得多余',
+    '不吵不闹闷声虐菜，稳稳送对面底盘下电咯',
+    '赛场点名处决，轮到谁谁直接原地蒸发',
+  ],
+  grind: [
+    '高情商：输出平滑；低情商：略显颓势',
+    '伤害一点点刮，好歹最后应该是刮死了',
+    '打这么慢，对面难道不会躲吗',
+  ],
+  stalled: [
+    '这输出是给对面抛光装甲板？不如上去创了都比这疼',
+    '对面的血好厚啊（doge），绝对不是自己输出太菜对吧',
+    '差一步击穿，像差一分挂科，菜得抠脚。',
+    '你大可以努力感动自己，自瞄肯定没那么弱的对吧',
+    '打歪了，你中那点伤害是为了最后这点体面吗',
+    'dps没输，输在对面死赖就是不吃伤害啊 嘿嘿',
+  ],
+  shielded: [
+    '护甲没开就输出？对着空气打拳，纯纯搞笑',
+    '门都没开，白给一波，对面看了都想笑',
+    '护甲一合，伤害直接归零，白费力气',
+    '护甲没开的输出，焦虑拉满，伤害为零',
+  ],
+};
+
+const RESULT_TAUNT_REACTIONS = [
+  '对面要是能打字，早哭着喊投降退赛了',
+  '把这结果贴裁判台，让大家看对面有多菜',
+  '数据说明一切，今天对面就不配上场',
+  '这曲线有声的话，全是对面破防的哀嚎',
+  '对面现在缺的不是战术，是能扛揍的脸',
+];
 
 const LEVEL_OPTIONS = Array.from({ length: 10 }, (_, index) => ({
   key: String(index + 1),
@@ -35,6 +88,33 @@ const TARGET_ROLE_OPTIONS = [
 ];
 
 const POSTURE_KEY_MOBILE = 'mobile';
+const SENTRY_POSTURE_DECAY_SEC = 180;
+const SENTRY_BASE_COOLING_RATE = 30;
+
+const SENTRY_POSTURE_INTRINSIC_EFFECTS = {
+  mobile: {
+    target: {
+      normal: { damageTakenMult: 1.25 },
+      decayed: { damageTakenMult: 1.25 },
+    },
+  },
+  attack: {
+    attacker: {
+      normal: { coolingMult: 3 },
+      decayed: { coolingMult: 2 },
+    },
+    target: {
+      normal: { damageTakenMult: 1.25 },
+      decayed: { damageTakenMult: 1.25 },
+    },
+  },
+  defense: {
+    target: {
+      normal: { damageTakenMult: 0.5 },
+      decayed: { damageTakenMult: 0.75 },
+    },
+  },
+};
 
 const ROLE_LABELS = {
   hero: '英雄',
@@ -176,6 +256,54 @@ const TARGET_PARTS = {
   sentry: [{ key: 'armor_plate', label: '装甲模块', receiveRatio: 1, damageScale17mm: 12, damageScale42mm: 52 }],
   engineer: [{ key: 'armor_plate', label: '装甲模块', receiveRatio: 1, damageScale17mm: 15, damageScale42mm: 60 }],
 };
+
+function getDefaultOutpostWindowDegrees(attackerRole) {
+  return OUTPOST_WINDOW_DEFAULT_BY_ATTACKER[attackerRole] || 120;
+}
+
+function normalizeOutpostWindowDegrees(value, attackerRole) {
+  return clamp(toNumber(value, getDefaultOutpostWindowDegrees(attackerRole)), OUTPOST_WINDOW_MIN_DEG, OUTPOST_WINDOW_MAX_DEG);
+}
+
+function computeOutpostReceiveRatio(windowDegrees) {
+  return clamp(windowDegrees, OUTPOST_WINDOW_MIN_DEG, OUTPOST_WINDOW_MAX_DEG) / 360;
+}
+
+function buildOutpostWindowNote(windowDegrees) {
+  return `前哨站受击按 ${Number(windowDegrees).toFixed(0)}° 可击打窗口折算 `;
+}
+
+function pickTauntVariant(list, seed) {
+  if (!Array.isArray(list) || !list.length) {
+    return '';
+  }
+  return list[Math.abs(seed) % list.length];
+}
+
+function buildAnalysisTaunt(context) {
+  const { inputs, target, ttkSec, totalDamage, peakHeat, totalShots, lastReceiveRatio, targetPart } = context;
+  let bucketKey = 'clean';
+  if (inputs.targetRole === 'base' && inputs.targetPart === 'shield_closed') {
+    bucketKey = 'shielded';
+  } else if (inputs.targetRole === 'outpost') {
+    bucketKey = inputs.targetWindowDegrees >= 240 ? 'outpostWide' : 'outpostTight';
+  } else if (ttkSec === null) {
+    bucketKey = 'stalled';
+  } else if (ttkSec <= 3) {
+    bucketKey = 'quick';
+  } else if (ttkSec > 10) {
+    bucketKey = 'grind';
+  }
+
+  const primarySeed = Math.round(totalDamage) + totalShots + Math.round(peakHeat) + Math.round(lastReceiveRatio * 100) + String(inputs.attackerRole).length * 11 + String(inputs.targetRole).length * 7;
+  const reactionSeed = Math.round((ttkSec === null ? inputs.durationSec : ttkSec) * 10) + Math.round((target && target.resolved && target.resolved.maxHealth) || 0) + Math.round((targetPart && targetPart.receiveRatio || 0) * 1000);
+  const primary = pickTauntVariant(RESULT_TAUNT_LIBRARY[bucketKey], primarySeed);
+  const reaction = pickTauntVariant(RESULT_TAUNT_REACTIONS, reactionSeed);
+  return {
+    title: '',
+    lines: [primary, reaction].filter(Boolean),
+  };
+}
 
 const EFFECTS = [
   {
@@ -506,9 +634,9 @@ const ATTACKER_CATALOG = {
     showPostureSelector: true,
     defaultPosture: POSTURE_KEY_MOBILE,
     postures: {
-      mobile: { label: '移动姿态', resolve() { return { ammoType: '17mm', heatPerShot: 10, maxHeat: 220, coolingRate: 30, note: '哨兵按姿态配置 ' }; } },
-      attack: { label: '进攻姿态', resolve() { return { ammoType: '17mm', heatPerShot: 10, maxHeat: 240, coolingRate: 90, note: '哨兵按姿态配置 ' }; } },
-      defense: { label: '防御姿态', resolve() { return { ammoType: '17mm', heatPerShot: 10, maxHeat: 220, coolingRate: 30, note: '哨兵按姿态配置 ' }; } },
+      mobile: { label: '移动姿态', resolve() { return { ammoType: '17mm', heatPerShot: 10, maxHeat: 220, coolingRate: SENTRY_BASE_COOLING_RATE, note: getSentryAttackerNote('mobile') }; } },
+      attack: { label: '进攻姿态', resolve() { return { ammoType: '17mm', heatPerShot: 10, maxHeat: 240, coolingRate: SENTRY_BASE_COOLING_RATE, note: getSentryAttackerNote('attack') }; } },
+      defense: { label: '防御姿态', resolve() { return { ammoType: '17mm', heatPerShot: 10, maxHeat: 220, coolingRate: SENTRY_BASE_COOLING_RATE, note: getSentryAttackerNote('defense') }; } },
     },
   },
   drone: {
@@ -526,7 +654,7 @@ const ATTACKER_CATALOG = {
 
 const TARGET_CATALOG = {
   base: { label: '基地', showProfileSelector: false, showLevelSelector: false, showPostureSelector: false, resolve() { return { maxHealth: TARGET_DEFAULT_HEALTH.base, damageReduction: 0, note: '基地支持普通装甲板、上方装甲板和护甲未展开三种状态 ' }; } },
-  outpost: { label: '前哨站', showProfileSelector: false, showLevelSelector: false, showPostureSelector: false, resolve() { return { maxHealth: TARGET_DEFAULT_HEALTH.outpost, damageReduction: 0, note: '前哨站受击按 120° 可击打窗口折算 ' }; } },
+  outpost: { label: '前哨站', showProfileSelector: false, showLevelSelector: false, showPostureSelector: false, resolve() { return { maxHealth: TARGET_DEFAULT_HEALTH.outpost, damageReduction: 0, note: buildOutpostWindowNote(getDefaultOutpostWindowDegrees(DEFAULT_FORM.attackerRole)) }; } },
   infantry: {
     label: '步兵', showProfileSelector: true, showLevelSelector: true, showPostureSelector: false, defaultProfile: 'health', defaultLevel: 1,
     profiles: {
@@ -544,9 +672,9 @@ const TARGET_CATALOG = {
   sentry: {
     label: '哨兵', showProfileSelector: false, showLevelSelector: false, showPostureSelector: true, defaultPosture: POSTURE_KEY_MOBILE,
     postures: {
-      mobile: { label: '移动姿态', resolve() { return { maxHealth: TARGET_DEFAULT_HEALTH.sentry, damageReduction: 0, note: '哨兵受击方按姿态配置 ' }; } },
-      attack: { label: '进攻姿态', resolve() { return { maxHealth: TARGET_DEFAULT_HEALTH.sentry, damageReduction: 0, note: '哨兵受击方按姿态配置 ' }; } },
-      defense: { label: '防御姿态', resolve() { return { maxHealth: TARGET_DEFAULT_HEALTH.sentry, damageReduction: 0, note: '哨兵受击方按姿态配置 ' }; } },
+      mobile: { label: '移动姿态', resolve() { return { maxHealth: TARGET_DEFAULT_HEALTH.sentry, damageReduction: 0, note: getSentryTargetNote('mobile') }; } },
+      attack: { label: '进攻姿态', resolve() { return { maxHealth: TARGET_DEFAULT_HEALTH.sentry, damageReduction: 0, note: getSentryTargetNote('attack') }; } },
+      defense: { label: '防御姿态', resolve() { return { maxHealth: TARGET_DEFAULT_HEALTH.sentry, damageReduction: 0, note: getSentryTargetNote('defense') }; } },
     },
   },
   engineer: { label: '工程', showProfileSelector: false, showLevelSelector: false, showPostureSelector: false, resolve() { return { maxHealth: TARGET_DEFAULT_HEALTH.engineer, damageReduction: 0, note: '工程目标支持开局防御等特定状态对比 ' }; } },
@@ -562,6 +690,7 @@ const DEFAULT_FORM = {
   targetLevel: 1,
   targetPosture: POSTURE_KEY_MOBILE,
   targetPart: 'central_plate',
+  targetWindowDegrees: getDefaultOutpostWindowDegrees('sentry'),
   durationSec: 60,
   requestedFireRateHz: BASE_FIRE_RATE_HZ,
   initialHeat: 0,
@@ -581,10 +710,61 @@ function pickOptionIndex(options, key) { const index = options.findIndex((item) 
 function getProfileOptions(roleConfig) { if (!roleConfig || !roleConfig.profiles) { return []; } return Object.keys(roleConfig.profiles).map((key) => ({ key, label: roleConfig.profiles[key].label })); }
 function getPostureOptions(roleConfig) { if (!roleConfig || !roleConfig.postures) { return []; } return Object.keys(roleConfig.postures).map((key) => ({ key, label: roleConfig.postures[key].label })); }
 function getTargetPartOptions(targetUnit) { return TARGET_PARTS[targetUnit] || TARGET_PARTS.infantry; }
-function resolveTargetPart(targetUnit, targetPart) { const options = getTargetPartOptions(targetUnit); return options.find((item) => item.key === targetPart) || options[0]; }
+function resolveTargetPart(targetUnit, targetPart, outpostWindowDegrees) {
+  const options = getTargetPartOptions(targetUnit);
+  const resolvedPart = options.find((item) => item.key === targetPart) || options[0];
+  if (targetUnit !== 'outpost') {
+    return resolvedPart;
+  }
+  return Object.assign({}, resolvedPart, {
+    receiveRatio: computeOutpostReceiveRatio(outpostWindowDegrees),
+  });
+}
 function positiveEffectPct(multiplier) { return Math.max(0, Number(multiplier) - 1); }
 function negativeEffectPct(multiplier) { return Math.max(0, 1 - Number(multiplier)); }
 function formatEffectPercent(value) { return `${value >= 0 ? '+' : '-'}${Math.abs(value).toFixed(0)}%`; }
+
+function createEffect(overrides = {}) {
+  return Object.assign({
+    damageDealtMult: 1,
+    damageTakenMult: 1,
+    coolingMult: 1,
+    hitProbabilityMult: 1,
+  }, overrides);
+}
+
+function isSentryPostureDecayed(currentTime) {
+  return Number(currentTime) >= SENTRY_POSTURE_DECAY_SEC - 1e-9;
+}
+
+function getSentryPostureEffects(postureKey, side, currentTime) {
+  const postureEffects = SENTRY_POSTURE_INTRINSIC_EFFECTS[postureKey] || SENTRY_POSTURE_INTRINSIC_EFFECTS[POSTURE_KEY_MOBILE];
+  const sideEffects = postureEffects && postureEffects[side];
+  if (!sideEffects) {
+    return null;
+  }
+  return createEffect(isSentryPostureDecayed(currentTime) ? sideEffects.decayed : sideEffects.normal);
+}
+
+function getSentryAttackerNote(postureKey) {
+  if (postureKey === 'attack') {
+    return '哨兵进攻姿态按 30/s 基础冷却计算，前 180 秒附带 3 倍冷却增益，之后衰减为 2 倍 ';
+  }
+  if (postureKey === 'defense') {
+    return '哨兵防御姿态按 30/s 冷却计算；若作为受击方，前 180 秒保持 50% 防御，之后衰减为 25% ';
+  }
+  return '哨兵移动姿态按 30/s 冷却计算；若作为受击方，常驻 25% 易伤 ';
+}
+
+function getSentryTargetNote(postureKey) {
+  if (postureKey === 'attack') {
+    return '哨兵进攻姿态受击时常驻 25% 易伤；若作为攻击方，前 180 秒附带 3 倍冷却增益，之后衰减为 2 倍 ';
+  }
+  if (postureKey === 'defense') {
+    return '哨兵防御姿态受击时前 180 秒获得 50% 防御，之后衰减为 25% 防御 ';
+  }
+  return '哨兵移动姿态受击时常驻 25% 易伤 ';
+}
 
 function buildEffectBadges(effect) {
   const badges = [];
@@ -671,14 +851,39 @@ function isEffectAvailable(effect, side, ownerKey) {
 }
 
 function getTimelineBounds(durationSec, schedules = []) {
-  const preRollSec = (Array.isArray(schedules) ? schedules : []).reduce((currentMax, schedule) => {
+  const extensionSec = (Array.isArray(schedules) ? schedules : []).reduce((currentMax, schedule) => {
     const fixedDurationSec = Math.max(0, toNumber(schedule && schedule.fixedDurationSec, 0));
     const scheduleSpan = Math.max(0, toNumber(schedule && schedule.endSec, 0) - toNumber(schedule && schedule.startSec, 0));
     return Math.max(currentMax, fixedDurationSec, scheduleSpan);
   }, 0);
   return {
-    min: preRollSec > 0 ? -preRollSec : 0,
-    max: durationSec,
+    min: extensionSec > 0 ? -extensionSec : 0,
+    max: durationSec + extensionSec,
+  };
+}
+
+function buildTimelineSegmentMetrics(startSec, endSec, simulationEndSec) {
+  const totalDurationSec = Math.max(0.1, endSec - startSec);
+  const preSimDurationSec = Math.max(0, Math.min(endSec, 0) - startSec);
+  const simDurationSec = Math.max(0, Math.min(endSec, simulationEndSec) - Math.max(startSec, 0));
+  const postSimDurationSec = Math.max(0, endSec - Math.max(startSec, simulationEndSec));
+  const preSimPercent = Number((preSimDurationSec / totalDurationSec * 100).toFixed(3));
+  const simPercent = Number((simDurationSec / totalDurationSec * 100).toFixed(3));
+  const postSimPercent = Number((postSimDurationSec / totalDurationSec * 100).toFixed(3));
+  const simOffsetPercent = preSimPercent;
+  const postSimOffsetPercent = Number((preSimPercent + simPercent).toFixed(3));
+  return {
+    totalDurationSec,
+    preSimDurationSec: Number(preSimDurationSec.toFixed(1)),
+    simDurationSec: Number(simDurationSec.toFixed(1)),
+    postSimDurationSec: Number(postSimDurationSec.toFixed(1)),
+    preSimPercent,
+    simPercent,
+    postSimPercent,
+    simOffsetPercent,
+    postSimOffsetPercent,
+    hasPreSimSegment: preSimDurationSec > 0,
+    hasPostSimSegment: postSimDurationSec > 0,
   };
 }
 
@@ -785,15 +990,20 @@ function resolveScheduledEffect(effect, schedule, side) {
 }
 
 function getDefaultScheduleEnd(resolvedEffect, durationSec, startSec) {
-  const bounds = getTimelineBounds(durationSec);
   const fixedDuration = toNumber(resolvedEffect && resolvedEffect.fixedDurationSec, durationSec);
-  return clamp(startSec + (fixedDuration > 0 ? fixedDuration : durationSec), bounds.min, bounds.max);
+  const rawEndSec = startSec + (fixedDuration > 0 ? fixedDuration : durationSec);
+  const bounds = getTimelineBounds(durationSec, [{
+    startSec,
+    endSec: rawEndSec,
+    fixedDurationSec: fixedDuration,
+  }]);
+  return clamp(rawEndSec, bounds.min, bounds.max);
 }
 
 function normalizeSchedules(scheduleValues, effectKeys, side, ownerKey, durationSec) {
   const source = Array.isArray(scheduleValues) ? scheduleValues : [];
   const existingMap = new Map(source.filter((item) => item && item.effectKey).map((item) => [item.effectKey, item]));
-  const bounds = getTimelineBounds(durationSec);
+  const bounds = getTimelineBounds(durationSec, source);
   return effectKeys
     .map((effectKey) => getEffectByKey(effectKey))
     .filter((effect) => isEffectAvailable(effect, side, ownerKey))
@@ -834,9 +1044,7 @@ function buildTimelineTracks(schedules, side, durationSec) {
     const durationOptions = getEffectDurationOptions(effect, side);
     const startPercent = (schedule.startSec - bounds.min) / totalSpan * 100;
     const endPercent = (schedule.endSec - bounds.min) / totalSpan * 100;
-    const totalDurationSec = Math.max(0.1, schedule.endSec - schedule.startSec);
-    const preSimDurationSec = Math.max(0, Math.min(schedule.endSec, 0) - schedule.startSec);
-    const simDurationSec = Math.max(0, schedule.endSec - Math.max(schedule.startSec, 0));
+    const segmentMetrics = buildTimelineSegmentMetrics(schedule.startSec, schedule.endSec, durationSec);
     return {
       effectKey: schedule.effectKey,
       label: effect.label,
@@ -864,11 +1072,16 @@ function buildTimelineTracks(schedules, side, durationSec) {
       startPercent,
       endPercent,
       spanPercent: Math.max(1.5, endPercent - startPercent),
-      preSimDurationSec: Number(preSimDurationSec.toFixed(1)),
-      simDurationSec: Number(simDurationSec.toFixed(1)),
-      preSimPercent: Number((preSimDurationSec / totalDurationSec * 100).toFixed(3)),
-      simPercent: Number((simDurationSec / totalDurationSec * 100).toFixed(3)),
-      hasPreSimSegment: preSimDurationSec > 0,
+      preSimDurationSec: segmentMetrics.preSimDurationSec,
+      simDurationSec: segmentMetrics.simDurationSec,
+      postSimDurationSec: segmentMetrics.postSimDurationSec,
+      preSimPercent: segmentMetrics.preSimPercent,
+      simPercent: segmentMetrics.simPercent,
+      postSimPercent: segmentMetrics.postSimPercent,
+      simOffsetPercent: segmentMetrics.simOffsetPercent,
+      postSimOffsetPercent: segmentMetrics.postSimOffsetPercent,
+      hasPreSimSegment: segmentMetrics.hasPreSimSegment,
+      hasPostSimSegment: segmentMetrics.hasPostSimSegment,
       timingText: `${schedule.startSec.toFixed(1)}s - ${schedule.endSec.toFixed(1)}s`,
       side,
     };
@@ -895,17 +1108,17 @@ function getActiveTracks(tracks, currentTime) {
   return tracks.filter((track) => currentTime + 1e-9 >= track.startSec && currentTime <= track.endSec + 1e-9);
 }
 
-function resolveEffectMultipliers(attackerTracks, targetTracks) {
-  const attackerEffects = attackerTracks.map((track) => track.effect);
-  const targetEffects = targetTracks.map((track) => track.effect);
-  const attackBonusPct = attackerEffects.reduce((current, effect) => Math.max(current, positiveEffectPct(effect.damageDealtMult)), 0);
-  const attackPenaltyPct = attackerEffects.reduce((current, effect) => Math.max(current, negativeEffectPct(effect.damageDealtMult)), 0);
-  const hitBonusPct = attackerEffects.reduce((current, effect) => Math.max(current, positiveEffectPct(effect.hitProbabilityMult)), 0);
-  const hitPenaltyPct = attackerEffects.reduce((current, effect) => Math.max(current, negativeEffectPct(effect.hitProbabilityMult)), 0);
-  const coolingBonusPct = attackerEffects.reduce((current, effect) => Math.max(current, positiveEffectPct(effect.coolingMult)), 0);
-  const coolingPenaltyPct = attackerEffects.reduce((current, effect) => Math.max(current, negativeEffectPct(effect.coolingMult)), 0);
-  const defenseBonusPct = targetEffects.reduce((current, effect) => Math.max(current, negativeEffectPct(effect.damageTakenMult)), 0);
-  const vulnerabilityBonusPct = targetEffects.reduce((current, effect) => Math.max(current, positiveEffectPct(effect.damageTakenMult)), 0);
+function resolveEffectMultipliers(attackerEffects, targetEffects) {
+  const attackerList = Array.isArray(attackerEffects) ? attackerEffects : [];
+  const targetList = Array.isArray(targetEffects) ? targetEffects : [];
+  const attackBonusPct = attackerList.reduce((current, effect) => Math.max(current, positiveEffectPct(effect.damageDealtMult)), 0);
+  const attackPenaltyPct = attackerList.reduce((current, effect) => Math.max(current, negativeEffectPct(effect.damageDealtMult)), 0);
+  const hitBonusPct = attackerList.reduce((current, effect) => Math.max(current, positiveEffectPct(effect.hitProbabilityMult)), 0);
+  const hitPenaltyPct = attackerList.reduce((current, effect) => Math.max(current, negativeEffectPct(effect.hitProbabilityMult)), 0);
+  const coolingBonusPct = attackerList.reduce((current, effect) => Math.max(current, positiveEffectPct(effect.coolingMult)), 0);
+  const coolingPenaltyPct = attackerList.reduce((current, effect) => Math.max(current, negativeEffectPct(effect.coolingMult)), 0);
+  const defenseBonusPct = targetList.reduce((current, effect) => Math.max(current, negativeEffectPct(effect.damageTakenMult)), 0);
+  const vulnerabilityBonusPct = targetList.reduce((current, effect) => Math.max(current, positiveEffectPct(effect.damageTakenMult)), 0);
   return {
     damageDealtMult: Math.max(0, 1 + attackBonusPct - attackPenaltyPct),
     hitProbabilityMult: Math.max(0, 1 + hitBonusPct - hitPenaltyPct),
@@ -990,6 +1203,11 @@ function resolveTarget(form) {
   } else {
     resolved = roleConfig.resolve(level);
   }
+  if (roleKey === 'outpost') {
+    resolved = Object.assign({}, resolved, {
+      note: buildOutpostWindowNote(normalizeOutpostWindowDegrees(form.targetWindowDegrees, form.attackerRole)),
+    });
+  }
   return {
     roleKey,
     roleLabel: TARGET_LABELS[roleKey],
@@ -1057,6 +1275,7 @@ function normalizeForm(form = {}) {
   draft.initialHeat = clamp(toNumber(draft.initialHeat, DEFAULT_FORM.initialHeat), 0, 500);
   draft.targetHealthPercent = clamp(toNumber(draft.targetHealthPercent, DEFAULT_FORM.targetHealthPercent), 0, 100);
   draft.hitRatePercent = clamp(toNumber(draft.hitRatePercent, DEFAULT_FORM.hitRatePercent), 0, 100);
+  draft.targetWindowDegrees = normalizeOutpostWindowDegrees(draft.targetWindowDegrees, draft.attackerRole);
   draft.attackerEffects = dedupeArray(draft.attackerEffects);
   draft.targetEffects = dedupeArray(draft.targetEffects);
 
@@ -1072,7 +1291,7 @@ function normalizeForm(form = {}) {
   draft.targetLevel = target.level;
   draft.targetPosture = target.postureKey || POSTURE_KEY_MOBILE;
 
-  const targetPart = resolveTargetPart(draft.targetRole, draft.targetPart);
+  const targetPart = resolveTargetPart(draft.targetRole, draft.targetPart, draft.targetWindowDegrees);
   draft.targetPart = targetPart.key;
   draft.attackerSchedules = normalizeSchedules(draft.attackerSchedules, draft.attackerEffects, 'attacker', draft.attackerRole, draft.durationSec);
   draft.targetSchedules = normalizeSchedules(draft.targetSchedules, draft.targetEffects, 'target', draft.targetRole, draft.durationSec);
@@ -1083,7 +1302,7 @@ function analyzeDamageLab(form = {}) {
   const inputs = normalizeForm(form);
   const attacker = resolveAttacker(inputs);
   const target = resolveTarget(inputs);
-  const targetPart = resolveTargetPart(inputs.targetRole, inputs.targetPart);
+  const targetPart = resolveTargetPart(inputs.targetRole, inputs.targetPart, inputs.targetWindowDegrees);
   const baseDamage = attacker.resolved.ammoType === '42mm' ? targetPart.damageScale42mm : targetPart.damageScale17mm;
   const currentTargetHealth = target.resolved.maxHealth * inputs.targetHealthPercent / 100;
   const dt = inputs.durationSec <= 600 ? 0.01 : 0.02;
@@ -1123,9 +1342,21 @@ function analyzeDamageLab(form = {}) {
   for (let index = 0; index < totalSteps; index += 1) {
     const currentTime = index * dt;
     timeAxis[index] = currentTime;
-    const activeAttackerTracks = getActiveTracks(attackerTracks, currentTime);
-    const activeTargetTracks = getActiveTracks(targetTracks, currentTime);
-    const modifiers = resolveEffectMultipliers(activeAttackerTracks, activeTargetTracks);
+    const activeAttackerEffects = getActiveTracks(attackerTracks, currentTime).map((track) => track.effect);
+    const activeTargetEffects = getActiveTracks(targetTracks, currentTime).map((track) => track.effect);
+    const attackerPostureEffect = attacker.roleKey === 'sentry'
+      ? getSentryPostureEffects(attacker.postureKey, 'attacker', currentTime)
+      : null;
+    const targetPostureEffect = target.roleKey === 'sentry'
+      ? getSentryPostureEffects(target.postureKey, 'target', currentTime)
+      : null;
+    if (attackerPostureEffect) {
+      activeAttackerEffects.push(attackerPostureEffect);
+    }
+    if (targetPostureEffect) {
+      activeTargetEffects.push(targetPostureEffect);
+    }
+    const modifiers = resolveEffectMultipliers(activeAttackerEffects, activeTargetEffects);
     const effectiveCoolingRate = attacker.resolved.coolingRate * modifiers.coolingMultiplier;
     const effectiveReceiveRatio = clamp(inputs.hitRatePercent / 100 * targetPart.receiveRatio * modifiers.hitProbabilityMult, 0, 1);
     const singleShotDamageNow = baseDamage * modifiers.damageDealtMult * modifiers.damageTakenMult;
@@ -1188,8 +1419,9 @@ function analyzeDamageLab(form = {}) {
   const attackerTimelineTracks = buildTimelineTracks(inputs.attackerSchedules, 'attacker', inputs.durationSec);
   const targetTimelineTracks = buildTimelineTracks(inputs.targetSchedules, 'target', inputs.durationSec);
   const noteLines = [SAFE_MODEL_NOTE, STACKING_NOTE];
-  if (inputs.targetRole === 'outpost') { noteLines.push('前哨站按 120° 可击打窗口折算 '); }
+  if (inputs.targetRole === 'outpost') { noteLines.push(buildOutpostWindowNote(inputs.targetWindowDegrees)); }
   if (inputs.targetRole === 'base' && inputs.targetPart === 'shield_closed') { noteLines.push('基地护甲未展开时按不可受击处理 '); }
+  if (inputs.attackerRole === 'sentry' || inputs.targetRole === 'sentry') { noteLines.push('哨兵姿态按 180 秒连续持续时间做默认/衰减分段：进攻姿态冷却由 3 倍降至 2 倍，防御姿态防御由 50% 衰减至 25% '); }
   if (attackerTimelineTracks.length) { noteLines.push(`攻击轨道 ${attackerTimelineTracks.map((item) => `${item.displayLabel} ${item.timingText}`).join('；')}`); }
   if (targetTimelineTracks.length) { noteLines.push(`受击轨道 ${targetTimelineTracks.map((item) => `${item.displayLabel} ${item.timingText}`).join('；')}`); }
   const summaryHighlights = [
@@ -1200,6 +1432,17 @@ function analyzeDamageLab(form = {}) {
     { label: '热量峰值', value: peakHeat.toFixed(1), tone: 'mixed' },
     { label: '归零结果', value: ttkSec === null ? '未归零' : `${ttkSec.toFixed(2)} 秒`, tone: ttkSec === null ? 'neutral' : 'attack' },
   ];
+  const taunt = buildAnalysisTaunt({
+    inputs,
+    attacker,
+    target,
+    targetPart,
+    ttkSec,
+    totalDamage: totalDamageCurve[totalSteps - 1],
+    peakHeat,
+    totalShots,
+    lastReceiveRatio,
+  });
 
   return {
     inputs,
@@ -1216,9 +1459,10 @@ function analyzeDamageLab(form = {}) {
     ],
     summaryLines: [
       `${attacker.roleLabel}${attackerConfigText ? ` · ${attackerConfigText}` : ''} · ${attacker.resolved.ammoType}`,
-      `${target.roleLabel}${targetConfigText ? ` · ${targetConfigText}` : ''} · ${targetPart.label}`,
+      `${target.roleLabel}${targetConfigText ? ` · ${targetConfigText}` : ''} · ${targetPart.label}${inputs.targetRole === 'outpost' ? ` · 窗口 ${inputs.targetWindowDegrees.toFixed(0)}°` : ''}`,
     ],
     summaryHighlights,
+    taunt,
     noteLines,
     attackerEffectOptions: buildEffectOptions(inputs.attackerEffects, inputs.attackerSchedules, 'attacker', inputs.attackerRole, inputs.durationSec),
     targetEffectOptions: buildEffectOptions(inputs.targetEffects, inputs.targetSchedules, 'target', inputs.targetRole, inputs.durationSec),
@@ -1230,6 +1474,8 @@ function analyzeDamageLab(form = {}) {
       currentTargetHealth: currentTargetHealth.toFixed(1),
       maxTargetHealth: target.resolved.maxHealth.toFixed(1),
       targetPartText: targetPart.label,
+      outpostWindowDegreesText: `${inputs.targetWindowDegrees.toFixed(0)}°`,
+      outpostWindowRatioText: `${(targetPart.receiveRatio * 100).toFixed(2)}%`,
       receiveRatioText: `${(lastReceiveRatio * 100).toFixed(2)}%`,
       coolingRateText: `${lastCoolingRate.toFixed(2)}/s`,
     },
@@ -1274,6 +1520,7 @@ function buildPageState(form = {}) {
     targetPostureIndex: pickOptionIndex(analysis.target.postureOptions, inputs.targetPosture),
     targetPartOptions,
     targetPartIndex: pickOptionIndex(targetPartOptions, inputs.targetPart),
+    showOutpostWindowControl: inputs.targetRole === 'outpost',
     showTargetProfile: analysis.target.showProfileSelector,
     showTargetLevel: analysis.target.showLevelSelector,
     showTargetPosture: analysis.target.showPostureSelector,
