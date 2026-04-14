@@ -1,4 +1,9 @@
-<view class="page-shell {{theme === 'dark' ? 'theme-dark' : 'theme-light'}}" style="padding-top: {{statusBarHeight + 10}}px;">
+<view class="page-shell {{theme === 'dark' ? 'theme-dark' : 'theme-light'}}" style="padding-top: {{pageTopInsetPx}}px;">
+  <view class="page-backdrop-art" style="transform: translate3d(0, {{portraitArtShiftY}}px, 0) scale({{portraitArtScale}});">
+    <image class="page-backdrop-art-image" src="{{theme === 'dark' ? '/dark.webp' : '/white.webp'}}" mode="aspectFit"></image>
+  </view>
+  <view class="page-backdrop-shade" style="opacity: {{portraitShadeOpacity}};"></view>
+  <view class="page-content-frost {{theme === 'dark' ? 'page-content-frost-dark' : 'page-content-frost-light'}}" style="opacity: {{portraitFrostOpacity}};"></view>
   <view class="page-grid"></view>
   <view class="page-glow glow-left"></view>
   <view class="page-glow glow-right"></view>
@@ -6,19 +11,30 @@
   <view class="page-orbit orbit-one"></view>
   <view class="page-orbit orbit-two"></view>
 
-  <view class="page-content" style="transform: translate3d(0, {{scrollShiftY}}px, 0) scaleX({{scrollScaleX}}) scaleY({{scrollScaleY}});">
+  <view class="page-content" style="transform: translate3d(0, {{scrollShiftY}}px, 0) scaleY({{scrollScaleY}});">
+
+  <view class="portrait-stage-shell" style="height: {{portraitStageHeightPx}}px;" catchtouchstart="onPortraitRevealStart" catchtouchmove="onPortraitRevealMove" catchtouchend="onPortraitRevealEnd" catchtouchcancel="onPortraitRevealEnd">
+    <view class="portrait-stage-copy">
+      <text class="portrait-stage-kicker">ARTINX LABORATORY</text>
+      <text class="portrait-stage-title">ASPIRATION OVER RESULTS</text>
+      <text class="portrait-stage-subtitle"></text>
+    </view>
+    <view class="portrait-stage-handle" style="top: {{portraitHandleTopPx}}px;">
+      <view class="portrait-stage-handle-bar"></view>
+      <text class="portrait-stage-handle-text">{{portraitRevealHint}}</text>
+    </view>
+  </view>
 
   <view class="hero-card">
     <view class="hero-top">
       <view class="hero-brand">
-        <image class="hero-logo" src="{{theme === 'dark' ? darkLogo : lightLogo}}" mode="aspectFit"></image>
+        <image class="hero-logo" src="{{theme === 'dark' ? darkLogo : lightLogo}}" mode="aspectFit" bindtap="onLogoTap" hover-class="tap-bounce-active" hover-stay-time="90"></image>
         <view class="hero-texts">
           <text class="hero-eyebrow">ARTINX RM DPS CALCULATOR</text>
-          <text class="hero-title">RM DPS 仿真计算器</text>
-          <text class="hero-copy">支持明暗主题、自定义增益轨道、实时曲线显示</text>
+          <text class="hero-title">RM DPS 计算器</text>
         </view>
       </view>
-      <view class="theme-switch" bindtap="onToggleTheme">{{theme === 'dark' ? '夜间' : '日间'}}</view>
+      <view class="theme-switch" bindtap="onToggleTheme" hover-class="tap-bounce-active" hover-stay-time="90">{{theme === 'dark' ? '黑夜' : '白天'}}</view>
     </view>
     <view class="hero-tags">
       <text class="hero-tag">多种单位</text>
@@ -26,8 +42,8 @@
       <text class="hero-tag">实时更新</text>
     </view>
     <view class="hero-actions">
-      <view class="hero-button primary" bindtap="onAnalyzeTap">伤害计算</view>
-      <view class="hero-button" bindtap="onResetTap">恢复默认</view>
+      <view class="hero-button primary" bindtap="onAnalyzeTap" hover-class="tap-bounce-active" hover-stay-time="90">伤害计算</view>
+      <view class="hero-button" bindtap="onResetTap" hover-class="tap-bounce-active" hover-stay-time="90">恢复默认</view>
     </view>
   </view>
 
@@ -86,7 +102,7 @@
         </view>
         <view class="control-slider-shell shell-duration">
           <view class="control-slider-rail"></view>
-          <slider class="control-slider slider-duration" min="15" max="240" step="5" block-size="24" block-color="#ffffff" value="{{form.durationSec}}" activeColor="#ff9954" backgroundColor="rgba(0, 0, 0, 0)" bindchange="onDurationChange" />
+          <slider class="control-slider slider-duration" min="15" max="240" step="5" block-size="24" block-color="#ffffff" value="{{form.durationSec}}" activeColor="#c2ff12" backgroundColor="rgba(0, 0, 0, 0)" bindchange="onDurationChange" />
         </view>
         <view class="mini-slider top-gap">
           <text class="mini-label">请求射速</text>
@@ -97,7 +113,7 @@
         </view>
         <view class="control-slider-shell shell-fire">
           <view class="control-slider-rail"></view>
-          <slider class="control-slider slider-fire" min="0" max="30" step="0.5" block-size="24" block-color="#ffffff" value="{{form.requestedFireRateHz}}" activeColor="#58a6ff" backgroundColor="rgba(0, 0, 0, 0)" bindchange="onFireRateChange" />
+          <slider class="control-slider slider-fire" min="0" max="30" step="0.5" block-size="24" block-color="#ffffff" value="{{form.requestedFireRateHz}}" activeColor="#8e4cff" backgroundColor="rgba(0, 0, 0, 0)" bindchange="onFireRateChange" />
         </view>
         <view class="mini-slider top-gap">
           <text class="mini-label">命中率</text>
@@ -108,7 +124,7 @@
         </view>
         <view class="control-slider-shell shell-hit">
           <view class="control-slider-rail"></view>
-          <slider class="control-slider slider-hit" min="0" max="100" step="5" block-size="24" block-color="#ffffff" value="{{form.hitRatePercent}}" activeColor="#2ed6ac" backgroundColor="rgba(0, 0, 0, 0)" bindchange="onHitRateChange" />
+          <slider class="control-slider slider-hit" min="0" max="100" step="5" block-size="24" block-color="#ffffff" value="{{form.hitRatePercent}}" activeColor="#c2ff12" backgroundColor="rgba(0, 0, 0, 0)" bindchange="onHitRateChange" />
         </view>
         <view class="mini-slider top-gap">
           <text class="mini-label">初始热量</text>
@@ -119,7 +135,7 @@
         </view>
         <view class="control-slider-shell shell-heat">
           <view class="control-slider-rail"></view>
-          <slider class="control-slider slider-heat" min="0" max="300" step="10" block-size="24" block-color="#ffffff" value="{{form.initialHeat}}" activeColor="#b68cff" backgroundColor="rgba(0, 0, 0, 0)" bindchange="onHeatChange" />
+          <slider class="control-slider slider-heat" min="0" max="300" step="10" block-size="24" block-color="#ffffff" value="{{form.initialHeat}}" activeColor="#8e4cff" backgroundColor="rgba(0, 0, 0, 0)" bindchange="onHeatChange" />
         </view>
       </view>
       <view class="field-item full-span field-note">
@@ -195,7 +211,7 @@
         </view>
         <view class="control-slider-shell shell-window">
           <view class="control-slider-rail"></view>
-          <slider class="control-slider slider-window" min="0" max="360" step="5" block-size="24" block-color="#ffffff" value="{{form.targetWindowDegrees}}" activeColor="#ffd166" backgroundColor="rgba(0, 0, 0, 0)" bindchange="onOutpostWindowChange" />
+          <slider class="control-slider slider-window" min="0" max="360" step="5" block-size="24" block-color="#ffffff" value="{{form.targetWindowDegrees}}" activeColor="#ffffff" backgroundColor="rgba(0, 0, 0, 0)" bindchange="onOutpostWindowChange" />
         </view>
         <view class="range-labels">
           <text>0°</text>
@@ -204,7 +220,7 @@
         </view>
       </view>
       <view class="field-item full-span slider-wrap">
-        <slider min="0" max="100" step="5" value="{{form.targetHealthPercent}}" activeColor="#397eff" backgroundColor="rgba(120, 120, 120, 0.18)" bindchange="onTargetHealthChange" />
+        <slider min="0" max="100" step="5" value="{{form.targetHealthPercent}}" activeColor="#c2ff12" backgroundColor="rgba(255, 255, 255, 0.10)" bindchange="onTargetHealthChange" />
         <view class="range-labels">
           <text>0 血</text>
           <text>满血</text>
@@ -366,7 +382,7 @@
       </view>
     </view>
     <view class="metric-grid">
-      <view class="metric-row" wx:for="{{metricRows}}" wx:key="*this">
+      <view class="metric-row" wx:for="{{metricRows}}" wx:key="rowIndex" wx:for-index="rowIndex">
         <view class="metric-card" wx:for="{{item}}" wx:key="label">
           <text class="metric-label">{{item.label}}</text>
           <text class="metric-value">{{item.value}}</text>
@@ -375,18 +391,18 @@
     </view>
     <view class="summary-box">
       <view class="summary-highlight-grid">
-        <view class="summary-highlight-row" wx:for="{{summaryHighlightRows}}" wx:key="*this">
+        <view class="summary-highlight-row" wx:for="{{summaryHighlightRows}}" wx:key="rowIndex" wx:for-index="rowIndex">
           <view class="summary-highlight-card summary-highlight-{{item.tone}}" wx:for="{{item}}" wx:key="label">
             <text class="summary-highlight-label">{{item.label}}</text>
             <text class="summary-highlight-value">{{item.value}}</text>
           </view>
         </view>
       </view>
-      <text class="summary-line" wx:for="{{analysis.summaryLines}}" wx:key="*this">{{item}}</text>
+      <text class="summary-line" wx:for="{{analysis.summaryLines}}" wx:key="index" wx:for-index="index">{{item}}</text>
     </view>
     <view class="summary-box taunt-box" wx:if="{{analysis.taunt && analysis.taunt.lines && analysis.taunt.lines.length}}">
       <text class="taunt-title">{{analysis.taunt.title}}</text>
-      <text class="taunt-line" wx:for="{{analysis.taunt.lines}}" wx:key="*this">{{item}}</text>
+      <text class="taunt-line" wx:for="{{analysis.taunt.lines}}" wx:key="index" wx:for-index="index">{{item}}</text>
     </view>
   </view>
 
@@ -396,7 +412,7 @@
         <text class="panel-kicker">CURVES</text>
         <text class="panel-title panel-title-inline">数值曲线</text>
       </view>
-      <view class="theme-switch mini" bindtap="onResetChartViewport">重置视图</view>
+      <view class="theme-switch mini" bindtap="onResetChartViewport" hover-class="tap-bounce-active" hover-stay-time="90">重置视图</view>
     </view>
     <text class="section-label chart-gesture-note">双指缩放或平移时间轴 </text>
 

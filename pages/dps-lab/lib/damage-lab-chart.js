@@ -97,8 +97,12 @@ function renderChart(canvasId, chart, width, height, theme, viewport) {
   }
 
   const ctx = wx.createCanvasContext(canvasId);
-  ctx.setFillStyle(theme.canvasBg);
-  ctx.fillRect(0, 0, width, height);
+  if (theme.canvasBg && theme.canvasBg !== 'transparent' && theme.canvasBg !== 'rgba(0,0,0,0)') {
+    ctx.setFillStyle(theme.canvasBg);
+    ctx.fillRect(0, 0, width, height);
+  } else {
+    ctx.clearRect(0, 0, width, height);
+  }
 
   const frame = drawAxes(ctx, width, height, theme);
   const visibleWindow = getVisibleWindow(chart.timeSec, viewport);

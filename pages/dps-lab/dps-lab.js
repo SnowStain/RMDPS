@@ -2,31 +2,51 @@ const { buildPageState, createDefaultPageState } = require('./lib/damage-lab-cor
 const { renderChart } = require('./lib/damage-lab-chart');
 
 const LIGHT_THEME = {
-  canvasBg: '#ffffff',
-  textColor: '#102030',
-  axisColor: 'rgba(16, 32, 48, 0.24)',
-  gridColor: 'rgba(16, 32, 48, 0.08)',
+  canvasBg: 'transparent',
+  textColor: '#11131a',
+  axisColor: 'rgba(17, 19, 26, 0.24)',
+  gridColor: 'rgba(145, 76, 255, 0.12)',
 };
 
 const DARK_THEME = {
-  canvasBg: '#0f1624',
-  textColor: '#eef4ff',
-  axisColor: 'rgba(238, 244, 255, 0.2)',
-  gridColor: 'rgba(238, 244, 255, 0.08)',
+  canvasBg: 'transparent',
+  textColor: '#f8fbff',
+  axisColor: 'rgba(194, 255, 18, 0.3)',
+  gridColor: 'rgba(145, 76, 255, 0.18)',
 };
 
 const TIMELINE_SNAP_THRESHOLD_RATIO = 0.018;
 const TIMELINE_SNAP_THRESHOLD_MIN_SEC = 0.35;
 const TIMELINE_SNAP_THRESHOLD_MAX_SEC = 1.2;
-const SCROLL_SQUISH_DELTA_LIMIT = 36;
+const PAGE_EDGE_SQUISH_RANGE_PX = 84;
+const PAGE_EDGE_SQUISH_MAX_SHIFT_PX = 5;
+const PAGE_EDGE_SQUISH_MIN_SCALE_Y = 0.988;
+const PORTRAIT_STAGE_BASE_PX = 148;
+const PORTRAIT_STAGE_MAX_RATIO = 0.72;
+const PORTRAIT_STAGE_MAX_REVEAL_PX = 620;
+const PORTRAIT_STAGE_SNAP_RATIO = 0.48;
+const PORTRAIT_HANDLE_HEIGHT_PX = 74;
+const PORTRAIT_HANDLE_MIN_TOP_PX = 142;
+const PORTRAIT_HANDLE_FOLLOW_OFFSET_PX = 18;
+const LOGO_MULTI_TAP_TARGET = 5;
+const LOGO_MULTI_TAP_RESET_MS = 1800;
+const BILIBILI_PROFILE_URL = 'https://space.bilibili.com/645940972';
 
 function getInitialWindowInfo() {
   try {
     if (typeof wx !== 'undefined' && wx.getWindowInfo) {
       return wx.getWindowInfo();
     }
-    if (typeof wx !== 'undefined' && wx.getSystemInfoSync) {
-      return wx.getSystemInfoSync();
+  } catch (error) {
+    return null;
+  }
+  return null;
+}
+
+function getMenuButtonRect() {
+  try {
+    if (typeof wx !== 'undefined' && wx.getMenuButtonBoundingClientRect) {
+      return wx.getMenuButtonBoundingClientRect();
     }
   } catch (error) {
     return null;
@@ -182,6 +202,13 @@ function clamp(value, min, max) {
   return Math.min(max, Math.max(min, value));
 }
 
+function getEdgeSquishProgress(distancePx, rangePx) {
+  if (distancePx < 0 || distancePx > rangePx) {
+    return 0;
+  }
+  return Number((1 - distancePx / rangePx).toFixed(4));
+}
+
 function getTouchAxisValue(touch, primaryKey, secondaryKey) {
   if (!touch) {
     return 0;
@@ -218,6 +245,37 @@ function getTouchCenterRatio(touches = [], rect) {
   return clamp((centerX - rect.left) / rect.width, 0, 1);
 }
 
+function getPortraitHandleTopPx(stageHeightPx, windowHeight, pageTopInsetPx) {
+  const safeWindowHeight = Math.max(320, Number(windowHeight) || 812);
+  const safePageTopInsetPx = Math.max(0, Number(pageTopInsetPx) || 0);
+  const preferredTopPx = Number(stageHeightPx) - PORTRAIT_HANDLE_FOLLOW_OFFSET_PX;
+  const maxTopPx = Math.max(
+    PORTRAIT_HANDLE_MIN_TOP_PX,
+    safeWindowHeight - safePageTopInsetPx - PORTRAIT_HANDLE_HEIGHT_PX - 12,
+  );
+
+  return Math.round(clamp(preferredTopPx, PORTRAIT_HANDLE_MIN_TOP_PX, maxTopPx));
+}
+
+function buildPortraitRevealState(revealOffsetPx, maxRevealPx, windowHeight, pageTopInsetPx) {
+  const safeMaxRevealPx = Math.max(1, Number(maxRevealPx) || 1);
+  const safeRevealOffsetPx = clamp(Number(revealOffsetPx) || 0, 0, safeMaxRevealPx);
+  const progress = safeRevealOffsetPx / safeMaxRevealPx;
+  const portraitStageHeightPx = Math.round(PORTRAIT_STAGE_BASE_PX + safeRevealOffsetPx);
+
+  return {
+    portraitRevealOffsetPx: Number(safeRevealOffsetPx.toFixed(1)),
+    portraitRevealProgress: Number(progress.toFixed(4)),
+    portraitStageHeightPx,
+    portraitArtScale: Number((1.04 - progress * 0.01).toFixed(4)),
+    portraitArtShiftY: Number((34 + progress * 12).toFixed(2)),
+    portraitShadeOpacity: Number((0.56 - progress * 0.20).toFixed(3)),
+    portraitFrostOpacity: Number((0.24 - progress * 0.24).toFixed(3)),
+    portraitHandleTopPx: getPortraitHandleTopPx(portraitStageHeightPx, windowHeight, pageTopInsetPx),
+    portraitRevealHint: progress >= 0.68 ? '' : '',
+  };
+}
+
 function getSystemTheme(windowInfo) {
   const theme = windowInfo && windowInfo.theme;
   return theme === 'dark' ? 'dark' : 'light';
@@ -239,9 +297,19 @@ Page({
       statusBarHeight: INITIAL_STATUS_BAR_HEIGHT,
       chartWidth: INITIAL_CHART_WIDTH,
       chartHeight: 220,
+      pageTopInsetPx: INITIAL_STATUS_BAR_HEIGHT + 10,
       scrollShiftY: 0,
-      scrollScaleX: 1,
       scrollScaleY: 1,
+      portraitRevealMaxPx: 420,
+      portraitRevealOffsetPx: 0,
+      portraitRevealProgress: 0,
+      portraitStageHeightPx: PORTRAIT_STAGE_BASE_PX,
+      portraitArtScale: 1.04,
+      portraitArtShiftY: 34,
+      portraitShadeOpacity: 0.56,
+      portraitFrostOpacity: 0.24,
+      portraitHandleTopPx: PORTRAIT_HANDLE_MIN_TOP_PX,
+      portraitRevealHint: '下拉展开',
       darkLogo: '/ARTINX DPS 1.webp',
       lightLogo: '/ARTINX DPS 2.webp',
       activeTimelineTrackId: '',
@@ -254,10 +322,24 @@ Page({
     this.chartViewport = createDefaultViewport();
     this.chartGesture = null;
     this.timelineDrag = null;
+    this.portraitRevealDrag = null;
+    this.currentScrollTop = 0;
     this.scrollMotionResetTimer = null;
-    this.lastScrollTop = 0;
+    this.logoTapResetTimer = null;
+    this.logoTapCount = 0;
     const windowInfo = getInitialWindowInfo() || INITIAL_WINDOW_INFO || {};
+    const menuButtonRect = getMenuButtonRect();
     const chartWidth = Math.max(300, (windowInfo.windowWidth || 375) - 44);
+    this.windowHeight = windowInfo.windowHeight || 812;
+    const pageTopInsetPx = Math.max(
+      (windowInfo.statusBarHeight || 24) + 10,
+      menuButtonRect && menuButtonRect.bottom ? Math.round(menuButtonRect.bottom + 12) : 0,
+    );
+    const portraitRevealMaxPx = Math.min(
+      PORTRAIT_STAGE_MAX_REVEAL_PX,
+      Math.max(260, Math.round(this.windowHeight * PORTRAIT_STAGE_MAX_RATIO)),
+    );
+    this.pageContentHeight = this.windowHeight;
     this.themeChangeHandler = (event) => {
       this.setData({ theme: event && event.theme === 'dark' ? 'dark' : 'light' }, () => {
         this.drawAllCharts();
@@ -270,6 +352,9 @@ Page({
       theme: getSystemTheme(windowInfo),
       statusBarHeight: windowInfo.statusBarHeight || 24,
       chartWidth,
+      pageTopInsetPx,
+      portraitRevealMaxPx,
+      ...buildPortraitRevealState(0, portraitRevealMaxPx, this.windowHeight, pageTopInsetPx),
     }, () => {
       this.refreshPageState(this.data.form);
     });
@@ -283,51 +368,146 @@ Page({
       clearTimeout(this.scrollMotionResetTimer);
       this.scrollMotionResetTimer = null;
     }
+    if (this.logoTapResetTimer) {
+      clearTimeout(this.logoTapResetTimer);
+      this.logoTapResetTimer = null;
+    }
   },
 
   onPageScroll(event) {
     const scrollTop = Number(event && event.scrollTop) || 0;
-    const delta = scrollTop - (this.lastScrollTop || 0);
-    this.lastScrollTop = scrollTop;
-    const limitedDelta = clamp(delta, -SCROLL_SQUISH_DELTA_LIMIT, SCROLL_SQUISH_DELTA_LIMIT);
-    const magnitude = Math.abs(limitedDelta);
-    if (magnitude < 0.5) {
+    this.currentScrollTop = scrollTop;
+    const maxScrollTop = Math.max(0, (this.pageContentHeight || this.windowHeight || 0) - (this.windowHeight || 0));
+    const topProgress = getEdgeSquishProgress(scrollTop, PAGE_EDGE_SQUISH_RANGE_PX);
+    const bottomProgress = getEdgeSquishProgress(maxScrollTop - scrollTop, PAGE_EDGE_SQUISH_RANGE_PX);
+    const activeProgress = Math.max(topProgress, bottomProgress);
+    const nextShiftY = Number(((topProgress - bottomProgress) * PAGE_EDGE_SQUISH_MAX_SHIFT_PX).toFixed(2));
+    const nextScaleY = Number((1 - activeProgress * (1 - PAGE_EDGE_SQUISH_MIN_SCALE_Y)).toFixed(4));
+
+    if (Math.abs(nextShiftY - this.data.scrollShiftY) < 0.01 && Math.abs(nextScaleY - this.data.scrollScaleY) < 0.0005) {
       return;
     }
 
-    const nextShiftY = Number(clamp(-limitedDelta * 0.12, -4.5, 4.5).toFixed(2));
-    const nextScaleX = Number((1 + magnitude * 0.0012).toFixed(4));
-    const nextScaleY = Number((1 - magnitude * 0.00075).toFixed(4));
     this.setData({
       scrollShiftY: nextShiftY,
-      scrollScaleX: nextScaleX,
       scrollScaleY: nextScaleY,
     });
+  },
 
-    if (this.scrollMotionResetTimer) {
-      clearTimeout(this.scrollMotionResetTimer);
+  measurePageMetrics(callback) {
+    wx.createSelectorQuery()
+      .select('.page-content')
+      .boundingClientRect((rect) => {
+        if (rect && rect.height) {
+          this.pageContentHeight = rect.height;
+        }
+        if (typeof callback === 'function') {
+          callback();
+        }
+      })
+      .exec();
+  },
+
+  onLogoTap() {
+    this.logoTapCount += 1;
+    if (this.logoTapResetTimer) {
+      clearTimeout(this.logoTapResetTimer);
     }
-    this.scrollMotionResetTimer = setTimeout(() => {
-      this.setData({
-        scrollShiftY: 0,
-        scrollScaleX: 1,
-        scrollScaleY: 1,
-      });
-      this.scrollMotionResetTimer = null;
-    }, 140);
+    this.logoTapResetTimer = setTimeout(() => {
+      this.logoTapCount = 0;
+      this.logoTapResetTimer = null;
+    }, LOGO_MULTI_TAP_RESET_MS);
+
+    if (this.logoTapCount < LOGO_MULTI_TAP_TARGET) {
+      return;
+    }
+
+    this.logoTapCount = 0;
+    clearTimeout(this.logoTapResetTimer);
+    this.logoTapResetTimer = null;
+    wx.navigateTo({
+      url: `/pages/dps-lab/webview/webview?url=${encodeURIComponent(BILIBILI_PROFILE_URL)}`,
+      fail: () => {
+        wx.setClipboardData({
+          data: BILIBILI_PROFILE_URL,
+        });
+      },
+    });
   },
 
   getThemePalette() {
     return this.data.theme === 'dark' ? DARK_THEME : LIGHT_THEME;
   },
 
+  applyPortraitReveal(revealOffsetPx, callback) {
+    this.setData(
+      buildPortraitRevealState(
+        revealOffsetPx,
+        this.data.portraitRevealMaxPx,
+        this.windowHeight,
+        this.data.pageTopInsetPx,
+      ),
+      callback,
+    );
+  },
+
+  onPortraitRevealStart(event) {
+    const touch = event.touches && event.touches[0];
+    if (!touch) {
+      return;
+    }
+
+    if (this.currentScrollTop > 18 && this.data.portraitRevealOffsetPx <= 0) {
+      return;
+    }
+
+    this.portraitRevealDrag = {
+      startY: getTouchAxisValue(touch, 'y', 'clientY'),
+      startOffsetPx: this.data.portraitRevealOffsetPx,
+    };
+  },
+
+  onPortraitRevealMove(event) {
+    if (!this.portraitRevealDrag) {
+      return;
+    }
+
+    const touch = event.touches && event.touches[0];
+    if (!touch) {
+      return;
+    }
+
+    const currentY = getTouchAxisValue(touch, 'y', 'clientY');
+    const deltaY = currentY - this.portraitRevealDrag.startY;
+    const nextOffsetPx = clamp(
+      this.portraitRevealDrag.startOffsetPx + deltaY,
+      0,
+      this.data.portraitRevealMaxPx,
+    );
+
+    this.applyPortraitReveal(nextOffsetPx);
+  },
+
+  onPortraitRevealEnd() {
+    if (!this.portraitRevealDrag) {
+      return;
+    }
+
+    this.portraitRevealDrag = null;
+    const nextOffsetPx = this.data.portraitRevealOffsetPx >= this.data.portraitRevealMaxPx * PORTRAIT_STAGE_SNAP_RATIO
+      ? this.data.portraitRevealMaxPx
+      : 0;
+
+    this.applyPortraitReveal(nextOffsetPx, () => {
+      this.measurePageMetrics();
+    });
+  },
+
   refreshPageState(formPatch, callback) {
     const nextState = buildPageState(formPatch);
     this.setData(nextState, () => {
       this.drawAllCharts();
-      if (typeof callback === 'function') {
-        callback();
-      }
+      this.measurePageMetrics(callback);
     });
   },
 
@@ -360,14 +540,15 @@ Page({
     this.chartViewport = createDefaultViewport();
     this.chartGesture = null;
     this.timelineDrag = null;
+    this.portraitRevealDrag = null;
     this.setData(Object.assign({}, createDefaultPageState(), {
       scrollShiftY: 0,
-      scrollScaleX: 1,
       scrollScaleY: 1,
       activeTimelineTrackId: '',
       activeTimelineTrackSide: '',
     }), () => {
       this.drawAllCharts();
+      this.measurePageMetrics();
     });
   },
 
