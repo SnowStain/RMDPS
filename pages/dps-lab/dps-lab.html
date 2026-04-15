@@ -4,6 +4,9 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
   <title>DPS Lab</title>
   <link rel="stylesheet" href="dps-lab.css">
 </head>
@@ -29,7 +32,8 @@
     </div>
     <div class="floating-reveal-handle" id="floating-reveal-handle"
       ontouchstart="pageInstance.onPortraitRevealStart(event)" ontouchmove="pageInstance.onPortraitRevealMove(event)"
-      ontouchend="pageInstance.onPortraitRevealEnd()">
+      ontouchend="pageInstance.onPortraitRevealEnd()"
+      onclick="event.preventDefault(); pageInstance.onPortraitRevealToggle()">
       <div class="hero-reveal-bridge floating-reveal-bridge">
         <div class="portrait-stage-handle-bar"></div>
         <span class="portrait-stage-handle-text" id="portrait-reveal-hint">下拉展开背景</span>
@@ -50,7 +54,8 @@
             <div class="hero-texts">
               <div class="hero-reveal-bridge-shell hero-reveal-bridge-shell-inline" id="hero-reveal-bridge-shell"
                 ontouchstart="pageInstance.onPortraitRevealStart(event)"
-                ontouchmove="pageInstance.onPortraitRevealMove(event)" ontouchend="pageInstance.onPortraitRevealEnd()">
+                ontouchmove="pageInstance.onPortraitRevealMove(event)" ontouchend="pageInstance.onPortraitRevealEnd()"
+                onclick="event.preventDefault(); pageInstance.onPortraitRevealToggle()">
                 <div class="hero-reveal-bridge">
                   <div class="portrait-stage-handle-bar"></div>
                   <span class="portrait-stage-handle-text" id="hero-portrait-reveal-hint">下拉展开背景</span>
@@ -116,7 +121,7 @@
             <div class="control-slider-shell shell-duration">
               <div class="control-slider-rail"></div>
               <input type="range" class="control-slider slider-duration" min="15" max="240" step="5"
-                id="duration-slider" value="60">
+                id="duration-slider" value="60" oninput="pageInstance.onDurationChange(event)">
             </div>
             <div class="mini-slider top-gap">
               <span class="mini-label">请求射速</span>
@@ -128,7 +133,7 @@
             <div class="control-slider-shell shell-fire">
               <div class="control-slider-rail"></div>
               <input type="range" class="control-slider slider-fire" min="0" max="30" step="0.5" id="fire-rate-slider"
-                value="15">
+                value="15" oninput="pageInstance.onFireRateChange(event)">
             </div>
             <div class="mini-slider top-gap">
               <span class="mini-label">命中率</span>
@@ -140,7 +145,7 @@
             <div class="control-slider-shell shell-hit">
               <div class="control-slider-rail"></div>
               <input type="range" class="control-slider slider-hit" min="0" max="100" step="5" id="hit-rate-slider"
-                value="100">
+                value="100" oninput="pageInstance.onHitRateChange(event)">
             </div>
             <div class="mini-slider top-gap">
               <span class="mini-label">初始热量</span>
@@ -152,7 +157,7 @@
             <div class="control-slider-shell shell-heat">
               <div class="control-slider-rail"></div>
               <input type="range" class="control-slider slider-heat" min="0" max="300" step="10" id="heat-slider"
-                value="0">
+                value="0" oninput="pageInstance.onHeatChange(event)">
             </div>
           </div>
           <div class="field-item full-span field-note">
@@ -216,7 +221,7 @@
             <div class="target-health-inline-shell">
               <div class="slider-wrap-rail target-health-inline-rail"></div>
               <input type="range" class="target-health-inline-slider" min="0" max="100" step="5"
-                id="target-health-slider" value="100">
+                id="target-health-slider" value="100" oninput="pageInstance.onTargetHealthChange(event)">
             </div>
             <div class="range-labels target-health-inline-labels">
               <span>0 血</span>
@@ -234,7 +239,7 @@
             <div class="control-slider-shell shell-window">
               <div class="control-slider-rail"></div>
               <input type="range" class="control-slider slider-window" min="0" max="360" step="5"
-                id="outpost-window-slider" value="120">
+                id="outpost-window-slider" value="120" oninput="pageInstance.onOutpostWindowChange(event)">
             </div>
             <div class="range-labels">
               <span>0°</span>
@@ -366,9 +371,9 @@
     </div>
   </div>
   <script src="../../app.js"></script>
+  <script src="lib/damage-lab-data.js"></script>
   <script src="lib/damage-lab-core.js"></script>
   <script src="lib/damage-lab-chart.js"></script>
-  <script src="lib/damage-lab-data.js"></script>
   <script src="dps-lab.js"></script>
 </body>
 

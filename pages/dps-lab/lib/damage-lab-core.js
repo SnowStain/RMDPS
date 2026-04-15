@@ -1,7 +1,14 @@
-const SAFE_MODEL_NOTE = '增益按时间轨道生效；热量控制采用安全控频模式，仅当剩余热量允许下一发不超上限时才发射 ';
-const STACKING_NOTE = '同类增益按最大有效值合并 ';
-const BASE_FIRE_RATE_HZ = 15.0;
-const CHART_MAX_POINTS = 200;
+if (!window.SAFE_MODEL_NOTE) window.SAFE_MODEL_NOTE = '增益按时间轨道生效；热量控制采用安全控频模式，仅当剩余热量允许下一发不超上限时发射 ';
+if (!window.STACKING_NOTE) window.STACKING_NOTE = '同类增益按最大有效值合并 ';
+if (!window.BASE_FIRE_RATE_HZ) window.BASE_FIRE_RATE_HZ = 15.0;
+if (!window.CHART_MAX_POINTS) window.CHART_MAX_POINTS = 200;
+
+// 从全局作用域获取已定义的变量
+var SAFE_MODEL_NOTE = window.SAFE_MODEL_NOTE;
+var STACKING_NOTE = window.STACKING_NOTE;
+var BASE_FIRE_RATE_HZ = window.BASE_FIRE_RATE_HZ;
+var CHART_MAX_POINTS = window.CHART_MAX_POINTS;
+
 const OUTPOST_WINDOW_MIN_DEG = 0;
 const OUTPOST_WINDOW_MAX_DEG = 360;
 const OUTPOST_WINDOW_STEP_DEG = 5;
@@ -121,14 +128,16 @@ const SENTRY_POSTURE_INTRINSIC_EFFECTS = {
   },
 };
 
-const ROLE_LABELS = {
+if (!window.ROLE_LABELS) window.ROLE_LABELS = {
   hero: '英雄',
   infantry: '步兵',
   sentry: '哨兵',
   drone: '无人机',
 };
 
-const TARGET_LABELS = {
+var ROLE_LABELS = window.ROLE_LABELS;
+
+if (!window.TARGET_LABELS) window.TARGET_LABELS = {
   base: '基地',
   outpost: '前哨站',
   infantry: '步兵',
@@ -137,7 +146,9 @@ const TARGET_LABELS = {
   engineer: '工程',
 };
 
-const TARGET_DEFAULT_HEALTH = {
+var TARGET_LABELS = window.TARGET_LABELS;
+
+if (!window.TARGET_DEFAULT_HEALTH) window.TARGET_DEFAULT_HEALTH = {
   base: 2000,
   outpost: 1500,
   infantry: 200,
@@ -145,6 +156,8 @@ const TARGET_DEFAULT_HEALTH = {
   sentry: 400,
   engineer: 250,
 };
+
+var TARGET_DEFAULT_HEALTH = window.TARGET_DEFAULT_HEALTH;
 
 const HERO_LEVEL_STATS = {
   melee: [
@@ -247,7 +260,7 @@ const DRONE_LEVEL_STATS = [
   { maxHeat: 200, coolingRate: 120 },
 ];
 
-const TARGET_PARTS = {
+if (!window.TARGET_PARTS) window.TARGET_PARTS = {
   base: [
     { key: 'normal_plate', label: '普通装甲板', receiveRatio: 1, damageScale17mm: 20, damageScale42mm: 75 },
     { key: 'front_upper_plate', label: '上方装甲板', receiveRatio: 1, damageScale17mm: 12, damageScale42mm: 68 },
@@ -261,6 +274,8 @@ const TARGET_PARTS = {
   sentry: [{ key: 'armor_plate', label: '装甲模块', receiveRatio: 1, damageScale17mm: 12, damageScale42mm: 52 }],
   engineer: [{ key: 'armor_plate', label: '装甲模块', receiveRatio: 1, damageScale17mm: 15, damageScale42mm: 60 }],
 };
+
+var TARGET_PARTS = window.TARGET_PARTS;
 
 function getDefaultOutpostWindowDegrees(attackerRole) {
   return OUTPOST_WINDOW_DEFAULT_BY_ATTACKER[attackerRole] || 120;
@@ -410,7 +425,7 @@ function buildAnalysisTaunt(context) {
   };
 }
 
-const EFFECTS = [
+if (!window.EFFECTS) window.EFFECTS = [
   {
     key: 'hero_deployment',
     label: '英雄部署区',
@@ -793,7 +808,7 @@ const TARGET_CATALOG = {
   engineer: { label: '工程', showProfileSelector: false, showLevelSelector: false, showPostureSelector: false, resolve() { return { maxHealth: TARGET_DEFAULT_HEALTH.engineer, damageReduction: 0, note: '工程目标支持开局防御等特定状态对比 ' }; } },
 };
 
-const DEFAULT_FORM = {
+if (!window.DEFAULT_FORM) window.DEFAULT_FORM = {
   attackerRole: 'sentry',
   attackerProfile: 'auto',
   attackerLevel: 1,
@@ -1694,8 +1709,3 @@ function buildPageState(form = {}) {
 function createDefaultPageState() {
   return buildPageState(DEFAULT_FORM);
 }
-
-module.exports = {
-  buildPageState,
-  createDefaultPageState,
-};

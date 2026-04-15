@@ -1,5 +1,4 @@
-const { buildPageState, createDefaultPageState } = require('./lib/damage-lab-core');
-const { renderChart } = require('./lib/damage-lab-chart');
+// 模块已在全局作用域中定义，无需导入
 
 const LIGHT_THEME = {
   canvasBg: 'transparent',
@@ -680,6 +679,71 @@ const pageInstance = {
     });
   },
   
+  // 电脑端点击切换下拉/收起
+  onPortraitRevealToggle() {
+    const currentOffset = this.data.portraitRevealOffsetPx || 0;
+    const nextOffsetPx = currentOffset > 0 ? 0 : this.data.portraitRevealMaxPx;
+    
+    this.applyPortraitReveal(nextOffsetPx, () => {
+      this.measurePageMetrics();
+    });
+  },
+  
+  onPortraitRevealStartMouse(event) {
+    event.preventDefault();
+    
+    if (this.currentScrollTop > 18 && this.data.portraitRevealOffsetPx <= 0) {
+      return;
+    }
+
+    const clientY = event.clientY || (event.touches && event.touches[0] ? event.touches[0].clientY : 0);
+    
+    this.portraitRevealDrag = {
+      startY: clientY,
+      startOffsetPx: this.data.portraitRevealOffsetPx,
+      isMouse: true,
+    };
+    
+    // 添加鼠标移动和释放事件监听器
+    document.addEventListener('mousemove', this.onPortraitRevealMouseMove.bind(this));
+    document.addEventListener('mouseup', this.onPortraitRevealMouseUp.bind(this));
+  },
+  
+  onPortraitRevealMouseMove(event) {
+    if (!this.portraitRevealDrag || !this.portraitRevealDrag.isMouse) {
+      return;
+    }
+
+    const currentY = event.clientY || 0;
+    const deltaY = currentY - this.portraitRevealDrag.startY;
+    const nextOffsetPx = clamp(
+      this.portraitRevealDrag.startOffsetPx + deltaY,
+      0,
+      this.data.portraitRevealMaxPx,
+    );
+
+    this.applyPortraitReveal(nextOffsetPx);
+  },
+  
+  onPortraitRevealMouseUp() {
+    if (!this.portraitRevealDrag || !this.portraitRevealDrag.isMouse) {
+      return;
+    }
+
+    // 移除事件监听器
+    document.removeEventListener('mousemove', this.onPortraitRevealMouseMove.bind(this));
+    document.removeEventListener('mouseup', this.onPortraitRevealMouseUp.bind(this));
+
+    this.portraitRevealDrag = null;
+    const nextOffsetPx = this.data.portraitRevealOffsetPx >= this.data.portraitRevealMaxPx * PORTRAIT_STAGE_SNAP_RATIO
+      ? this.data.portraitRevealMaxPx
+      : 0;
+
+    this.applyPortraitReveal(nextOffsetPx, () => {
+      this.measurePageMetrics();
+    });
+  },
+  
   refreshPageState(formPatch, callback) {
     const nextState = buildPageState(formPatch);
     this.setData(nextState, () => {
@@ -1076,7 +1140,6 @@ const pageInstance = {
   
   onToggleAttackerEffect(event) {
     const key = event.currentTarget.dataset.key;
-    const selected = new Set(this.data.form.attackerEffects || []);
     if (selected.has(key)) {
       selected.delete(key);
     } else {
