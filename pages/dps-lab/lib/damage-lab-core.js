@@ -1,4 +1,4 @@
-const SAFE_MODEL_NOTE = '增益按时间轨道生效 ';
+const SAFE_MODEL_NOTE = '增益按时间轨道生效；热量控制采用安全控频模式，仅当剩余热量允许下一发不超上限时才发射 ';
 const STACKING_NOTE = '同类增益按最大有效值合并 ';
 const BASE_FIRE_RATE_HZ = 15.0;
 const CHART_MAX_POINTS = 200;
@@ -31,15 +31,12 @@ const RESULT_TAUNT_LIBRARY = {
     '打这么慢，对面难道不会躲吗',
   ],
   stalled: [
-    '这输出是给对面抛光装甲板？不如上去创了都比这疼',
-    '对面的血好厚啊（doge），绝对不是自己输出太菜对吧',
-    '你大可以努力感动自己，自瞄肯定没那么弱的对吧',
-    '打歪了，你中那点伤害是为了最后这点体面吗',
+    '对面的血好厚啊（doge），绝对不是自己输出不够对吧',
+    '你大可以相信自己的自瞄肯定没那么弱 对吧',
+    '你中那点伤害是为了最后这点体面吗',
   ],
   shielded: [
-    '护甲没开就输出？对着空气打拳，纯纯搞笑',
-    '门都没开，白给一波，对面看了都想笑',
-    '护甲没开的输出，焦虑拉满，伤害为零',
+    '护甲没开就输出？对着空气打拳',
   ],
 };
 
@@ -697,16 +694,15 @@ const ATTACKER_CATALOG = {
     profiles: {
       melee: {
         label: '近战优先',
-        resolve(level) {
-          const stats = getLeveledStats(HERO_LEVEL_STATS.melee, level);
-          return { ammoType: '42mm', heatPerShot: 12, maxHealth: stats.maxHealth, maxHeat: stats.maxHeat, coolingRate: stats.coolingRate, note: '英雄攻击方支持近战/远程两种配置，参数按性能体系表修正 ' };
+        resolve(level) {           const stats = getLeveledStats(HERO_LEVEL_STATS.melee, level);
+          return { ammoType: '42mm', heatPerShot: 100, maxHealth: stats.maxHealth, maxHeat: stats.maxHeat, coolingRate: stats.coolingRate, note: '英雄攻击方支持近战/远程两种配置，42mm大弹丸每发消耗100点热量 ' };
         },
       },
       ranged: {
         label: '远程优先',
         resolve(level) {
           const stats = getLeveledStats(HERO_LEVEL_STATS.ranged, level);
-          return { ammoType: '42mm', heatPerShot: 12, maxHealth: stats.maxHealth, maxHeat: stats.maxHeat, coolingRate: stats.coolingRate, note: '英雄攻击方支持近战/远程两种配置，参数按性能体系表修正 ' };
+          return { ammoType: '42mm', heatPerShot: 100, maxHealth: stats.maxHealth, maxHeat: stats.maxHeat, coolingRate: stats.coolingRate, note: '英雄攻击方支持近战/远程两种配置，42mm大弹丸每发消耗100点热量 ' };
         },
       },
     },
@@ -1529,8 +1525,10 @@ function analyzeDamageLab(form = {}) {
         totalReceivedDamage += singleShotDamageNow * effectiveReceiveRatio;
         heat += attacker.resolved.heatPerShot;
         peakHeat = Math.max(peakHeat, heat);
+        nextShotTime += shotInterval;
+      } else {
+        nextShotTime += shotInterval;
       }
-      nextShotTime += shotInterval;
     }
     totalDamageCurve[index] = totalDamage;
     receivedDamageCurve[index] = totalReceivedDamage;

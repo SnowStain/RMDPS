@@ -245,11 +245,11 @@ const ROLE_CATALOG = {
     profiles: {
       melee_priority: {
         label: PROFILE_LABELS.melee_priority,
-        levels: buildLevelMap(HERO_MELEE_ROWS, '42mm', 100.0),
+        levels: buildLevelMap(HERO_MELEE_ROWS, '42mm', 100.0), // 一发100热量
       },
       ranged_priority: {
         label: PROFILE_LABELS.ranged_priority,
-        levels: buildLevelMap(HERO_RANGED_ROWS, '42mm', 100.0),
+        levels: buildLevelMap(HERO_RANGED_ROWS, '42mm', 100.0), // 一发100热量
       },
     },
   },

@@ -9,7 +9,7 @@
     <image
       class="page-backdrop-art-image"
       style="filter: blur({{portraitArtBlurPx}}px) saturate({{portraitArtSaturate}}) brightness({{portraitArtBrightness}}); opacity: {{portraitArtImageOpacity}};"
-      src="{{theme === 'dark' ? '/dark.webp' : '/white.webp'}}"
+      src="{{theme === 'dark' ? darkBackdrop : lightBackdrop}}"
       mode="aspectFit"
     ></image>
     <view class="page-backdrop-art-blend" style="opacity: {{portraitArtBlendOpacity}};"></view>
@@ -36,7 +36,7 @@
     class="floating-stage-title {{showFloatingStageTitle ? 'floating-stage-title-visible' : ''}}"
     style="top: {{floatingStageTitleTopPx}}px;"
   >
-    <text class="floating-stage-copy">     大 道 至 简   匠 心 至 臻</text>
+    <text class="floating-stage-copy"> 大 道 至 简 匠 心 至 臻</text>
   </view>
   <view
     wx:if="{{portraitRevealProgress > 0.04}}"
@@ -65,7 +65,7 @@
       catchtouchcancel="onPortraitRevealEnd"
     >
       <view class="portrait-stage-copy portrait-stage-copy-standalone">
-        <text class="portrait-stage-title">大 道 至 简   匠 心 至 臻</text>
+        <text class="portrait-stage-title">大 道 至 简 匠 心 至 臻</text>
       </view>
     </view>
 
@@ -760,7 +760,8 @@
           >
           <text class="effect-meta"
             >{{item.variantLabel}}{{item.variantLabel && item.durationLabel ? ' · ' :
-            ''}}{{item.durationLabel}}{{(item.variantLabel || item.durationLabel) ? ' · ' : ''}}持续{{item.durationSec}}s 直接拖动 调整开始时间</text
+            ''}}{{item.durationLabel}}{{(item.variantLabel || item.durationLabel) ? ' · ' :
+            ''}}持续{{item.durationSec}}s 直接拖动 调整开始时间</text
           >
           <view
             id="timeline-track-target-{{item.effectKey}}"
@@ -982,9 +983,10 @@
       </view>
 
       <view class="lab-footer-note">
-        <text class="lab-footer-copy">由 南科大ARTINX战队-归尘 开发，仍在优化阶段
-          如有不合理之处敬请谅解</text>
-        <text class="lab-footer-version">版本号 v2.0.0</text>
+        <text class="lab-footer-copy"
+          >由 南科大ARTINX战队-归尘 开发，仍在优化阶段 如有不合理之处敬请谅解</text
+        >
+        <text class="lab-footer-version">版本号 v2.1.1</text>
       </view>
     </view>
   </view>

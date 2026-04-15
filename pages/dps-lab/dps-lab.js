@@ -42,6 +42,9 @@ function getInitialWindowInfo() {
     if (typeof wx !== 'undefined' && wx.getWindowInfo) {
       return wx.getWindowInfo();
     }
+    if (typeof wx !== 'undefined' && wx.getSystemInfoSync) {
+      return wx.getSystemInfoSync();
+    }
   } catch (error) {
     return null;
   }
@@ -57,6 +60,33 @@ function getMenuButtonRect() {
     return null;
   }
   return null;
+}
+
+function getSafeSystemSnapshot(getter) {
+  try {
+    if (typeof wx !== 'undefined' && typeof getter === 'function') {
+      const result = getter();
+      return result && typeof result === 'object' ? result : null;
+    }
+  } catch (error) {
+    return null;
+  }
+  return null;
+}
+
+function createScopedSelectorQuery(context) {
+  if (typeof wx === 'undefined' || !wx.createSelectorQuery) {
+    return null;
+  }
+  const query = wx.createSelectorQuery();
+  if (query && typeof query.in === 'function' && context) {
+    try {
+      return query.in(context);
+    } catch (error) {
+      return query;
+    }
+  }
+  return query;
 }
 
 function mergeForm(currentForm, patch) {
@@ -312,8 +342,17 @@ function buildPortraitRevealState(revealOffsetPx, maxRevealPx, windowHeight, pag
 }
 
 function getSystemTheme(windowInfo) {
-  const theme = windowInfo && windowInfo.theme;
-  return theme === 'dark' ? 'dark' : 'light';
+  const appBaseInfo = getSafeSystemSnapshot(() => wx.getAppBaseInfo && wx.getAppBaseInfo());
+  const systemSetting = getSafeSystemSnapshot(() => wx.getSystemSetting && wx.getSystemSetting());
+  const systemInfo = getSafeSystemSnapshot(() => wx.getSystemInfoSync && wx.getSystemInfoSync());
+  const themeCandidates = [
+    windowInfo && windowInfo.theme,
+    appBaseInfo && appBaseInfo.theme,
+    systemSetting && systemSetting.theme,
+    systemInfo && systemInfo.theme,
+  ];
+  const matchedTheme = themeCandidates.find((theme) => theme === 'dark' || theme === 'light');
+  return matchedTheme || 'light';
 }
 
 function noop() {}
@@ -358,8 +397,10 @@ Page({
       portraitRevealHint: '下拉展开',
       contentFocusProgress: 0,
       showFloatingStageTitle: false,
-      darkLogo: '/ARTINX DPS 1.webp',
-      lightLogo: '/ARTINX DPS 2.webp',
+      darkLogo: '/assets/dps-lab/logo-dark.jpg',
+      lightLogo: '/assets/dps-lab/logo-light.jpg',
+      darkBackdrop: '/assets/dps-lab/backdrop-dark.jpg',
+      lightBackdrop: '/assets/dps-lab/backdrop-light.jpg',
       activeTimelineTrackId: '',
       activeTimelineTrackSide: '',
     },
@@ -371,6 +412,10 @@ Page({
     this.chartGesture = null;
     this.timelineDrag = null;
     this.portraitRevealDrag = null;
+    this.isPageReady = false;
+    this.isPageDisposed = false;
+    this.pendingChartRender = false;
+    this.chartRenderScheduled = false;
     this.currentScrollTop = 0;
     this.scrollMotionResetTimer = null;
     this.logoTapResetTimer = null;
@@ -394,8 +439,8 @@ Page({
     );
     this.pageContentHeight = this.windowHeight;
     this.themeChangeHandler = (event) => {
-      this.setData({ theme: event && event.theme === 'dark' ? 'dark' : 'light' }, () => {
-        this.drawAllCharts();
+      this.setData({ theme: getSystemTheme(event) }, () => {
+        this.scheduleDrawAllCharts();
       });
     };
     if (wx.onThemeChange) {
@@ -416,7 +461,15 @@ Page({
     });
   },
 
+  onReady() {
+    this.isPageReady = true;
+    this.scheduleDrawAllCharts();
+    this.measurePageMetrics();
+  },
+
   onUnload() {
+    this.isPageDisposed = true;
+    this.isPageReady = false;
     if (wx.offThemeChange && this.themeChangeHandler) {
       wx.offThemeChange(this.themeChangeHandler);
     }
@@ -464,8 +517,47 @@ Page({
     });
   },
 
+  scheduleDrawAllCharts() {
+    if (this.isPageDisposed) {
+      return;
+    }
+
+    if (!this.isPageReady) {
+      this.pendingChartRender = true;
+      return;
+    }
+
+    if (this.chartRenderScheduled) {
+      return;
+    }
+
+    this.chartRenderScheduled = true;
+    const commitRender = () => {
+      this.chartRenderScheduled = false;
+      if (this.isPageDisposed) {
+        return;
+      }
+      this.pendingChartRender = false;
+      this.drawAllCharts();
+    };
+
+    if (typeof wx !== 'undefined' && wx.nextTick) {
+      wx.nextTick(commitRender);
+      return;
+    }
+
+    setTimeout(commitRender, 0);
+  },
+
   measurePageMetrics(callback) {
-    wx.createSelectorQuery()
+    const query = createScopedSelectorQuery(this);
+    if (!query) {
+      if (typeof callback === 'function') {
+        callback();
+      }
+      return;
+    }
+    query
       .select('.page-content')
       .boundingClientRect((rect) => {
         if (rect && rect.height) {
@@ -577,7 +669,7 @@ Page({
   refreshPageState(formPatch, callback) {
     const nextState = buildPageState(formPatch);
     this.setData(nextState, () => {
-      this.drawAllCharts();
+      this.scheduleDrawAllCharts();
       this.measurePageMetrics(callback);
     });
   },
@@ -597,7 +689,7 @@ Page({
     this.setData({
       theme: this.data.theme === 'dark' ? 'light' : 'dark',
     }, () => {
-      this.drawAllCharts();
+      this.scheduleDrawAllCharts();
     });
   },
 
@@ -635,7 +727,7 @@ Page({
       activeTimelineTrackId: '',
       activeTimelineTrackSide: '',
     }), () => {
-      this.drawAllCharts();
+      this.scheduleDrawAllCharts();
       this.measurePageMetrics();
     });
   },
@@ -654,7 +746,11 @@ Page({
     if (!track || !touches.length) {
       return;
     }
-    wx.createSelectorQuery()
+    const query = createScopedSelectorQuery(this);
+    if (!query) {
+      return;
+    }
+    query
       .select(`#timeline-track-${side}-${effectKey}`)
       .boundingClientRect((rect) => {
         if (!rect || !rect.width) {
@@ -969,7 +1065,11 @@ Page({
       return;
     }
     const chartKey = event.currentTarget.dataset.chartKey;
-    wx.createSelectorQuery()
+    const query = createScopedSelectorQuery(this);
+    if (!query) {
+      return;
+    }
+    query
       .select(`#${chartKey}ChartWrap`)
       .boundingClientRect((rect) => {
         if (!rect || !rect.width) {
