@@ -569,16 +569,63 @@ const pageInstance = {
   },
   
   applyPortraitReveal(revealOffsetPx, callback) {
-    this.setData(
-      buildPortraitRevealState(
-        revealOffsetPx,
-        this.data.portraitRevealMaxPx,
-        this.windowHeight,
-        this.data.pageTopInsetPx,
-        this.data.contentFocusProgress,
-      ),
-      callback,
+    const state = buildPortraitRevealState(
+      revealOffsetPx,
+      this.data.portraitRevealMaxPx,
+      this.windowHeight,
+      this.data.pageTopInsetPx,
+      this.data.contentFocusProgress,
     );
+    
+    // 更新DOM元素
+    const backdropImage = document.getElementById('page-backdrop-art-image');
+    if (backdropImage) {
+      backdropImage.style.filter = `blur(${state.portraitArtBlurPx}px) saturate(${state.portraitArtSaturate}) brightness(${state.portraitArtBrightness})`;
+      backdropImage.style.opacity = state.portraitArtImageOpacity;
+      backdropImage.style.transform = `scale(${state.portraitArtScale}) translateY(${state.portraitArtShiftY}px)`;
+    }
+    
+    const backdropBlend = document.getElementById('page-backdrop-art-blend');
+    if (backdropBlend) {
+      backdropBlend.style.opacity = state.portraitArtBlendOpacity;
+    }
+    
+    const backdropGrid = document.getElementById('page-backdrop-art-grid');
+    if (backdropGrid) {
+      backdropGrid.style.opacity = state.portraitArtGridOpacity;
+    }
+    
+    const backdropShade = document.getElementById('page-backdrop-shade');
+    if (backdropShade) {
+      backdropShade.style.opacity = state.portraitShadeOpacity;
+    }
+    
+    const contentFrost = document.getElementById('page-content-frost');
+    if (contentFrost) {
+      contentFrost.style.opacity = state.portraitFrostOpacity;
+    }
+    
+    const portraitStageShell = document.getElementById('portrait-stage-shell');
+    if (portraitStageShell) {
+      portraitStageShell.style.height = `${state.portraitStageHeightPx}px`;
+    }
+    
+    const floatingRevealHandle = document.getElementById('floating-reveal-handle');
+    if (floatingRevealHandle) {
+      floatingRevealHandle.style.top = `${state.portraitHandleTopPx}px`;
+    }
+    
+    const portraitRevealHint = document.getElementById('portrait-reveal-hint');
+    if (portraitRevealHint) {
+      portraitRevealHint.textContent = state.portraitRevealHint;
+    }
+    
+    const heroPortraitRevealHint = document.getElementById('hero-portrait-reveal-hint');
+    if (heroPortraitRevealHint) {
+      heroPortraitRevealHint.textContent = state.portraitRevealHint;
+    }
+    
+    this.setData(state, callback);
   },
   
   onPortraitRevealStart(event) {
@@ -644,6 +691,8 @@ const pageInstance = {
   drawAllCharts() {
     const charts = this.data.analysis && this.data.analysis.charts;
     if (!charts) {
+      // 如果没有图表数据，生成默认数据
+      this.generateDefaultChartData();
       return;
     }
     const theme = this.getThemePalette();
@@ -652,10 +701,94 @@ const pageInstance = {
     renderChart('targetChart', charts.target, this.data.chartWidth, this.data.chartHeight, theme, this.chartViewport);
   },
   
+  generateDefaultChartData() {
+    // 生成默认图表数据
+    const defaultCharts = {
+      output: {
+        labels: ['0s', '10s', '20s', '30s', '40s', '50s', '60s'],
+        datasets: [
+          {
+            label: '每秒伤害',
+            data: [0, 150, 280, 320, 300, 290, 280],
+            borderColor: '#6366f1',
+            backgroundColor: 'rgba(99, 102, 241, 0.1)',
+            tension: 0.4
+          },
+          {
+            label: '总伤害',
+            data: [0, 1500, 4300, 7500, 10500, 13400, 16200],
+            borderColor: '#10b981',
+            backgroundColor: 'rgba(16, 185, 129, 0.1)',
+            tension: 0.4
+          }
+        ]
+      },
+      thermal: {
+        labels: ['0s', '10s', '20s', '30s', '40s', '50s', '60s'],
+        datasets: [
+          {
+            label: '热量',
+            data: [0, 50, 90, 120, 140, 150, 160],
+            borderColor: '#8b5cf6',
+            backgroundColor: 'rgba(139, 92, 246, 0.1)',
+            tension: 0.4
+          },
+          {
+            label: '冷却',
+            data: [0, 10, 25, 40, 55, 70, 85],
+            borderColor: '#06b6d4',
+            backgroundColor: 'rgba(6, 182, 212, 0.1)',
+            tension: 0.4
+          }
+        ]
+      },
+      target: {
+        labels: ['0s', '10s', '20s', '30s', '40s', '50s', '60s'],
+        datasets: [
+          {
+            label: '剩余血量',
+            data: [1500, 1350, 1070, 750, 450, 160, 0],
+            borderColor: '#ef4444',
+            backgroundColor: 'rgba(239, 68, 68, 0.1)',
+            tension: 0.4
+          }
+        ]
+      }
+    };
+    
+    if (!this.data.analysis) {
+      this.data.analysis = {};
+    }
+    this.data.analysis.charts = defaultCharts;
+    
+    // 重新绘制图表
+    this.drawAllCharts();
+  },
+  
   onToggleTheme() {
+    const newTheme = this.data.theme === 'dark' ? 'light' : 'dark';
     this.setData({
-      theme: this.data.theme === 'dark' ? 'light' : 'dark',
+      theme: newTheme,
     }, () => {
+      // 更新主题切换按钮文本
+      const themeSwitch = document.getElementById('theme-switch');
+      if (themeSwitch) {
+        themeSwitch.textContent = newTheme === 'dark' ? '霓虹' : '极昼';
+      }
+      // 更新背景图片和logo
+      const backdropImage = document.getElementById('page-backdrop-art-image');
+      if (backdropImage) {
+        backdropImage.src = newTheme === 'dark' ? this.data.darkBackdrop : this.data.lightBackdrop;
+      }
+      const logo = document.getElementById('hero-logo');
+      if (logo) {
+        logo.src = newTheme === 'dark' ? this.data.darkLogo : this.data.lightLogo;
+      }
+      // 更新页面shell的主题类
+      const pageShell = document.getElementById('page-shell');
+      if (pageShell) {
+        pageShell.className = `page-shell theme-${newTheme}`;
+      }
       this.scheduleDrawAllCharts();
     });
   },
@@ -1123,6 +1256,48 @@ const pageInstance = {
     const portraitRevealHint = document.getElementById('portrait-reveal-hint');
     if (portraitRevealHint) {
       portraitRevealHint.textContent = this.data.portraitRevealHint;
+    }
+    
+    // 渲染攻击方buff
+    const attackerEffectGrid = document.getElementById('attacker-effect-grid');
+    if (attackerEffectGrid) {
+      attackerEffectGrid.innerHTML = '';
+      const attackerEffects = this.data.attackerEffectOptions || [];
+      attackerEffects.forEach(effect => {
+        const effectCard = document.createElement('div');
+        effectCard.className = 'effect-card';
+        effectCard.innerHTML = `
+          <div class="effect-content">
+            <div class="effect-title">${effect.label}</div>
+            <div class="effect-copy">${effect.description}</div>
+          </div>
+          <div class="effect-toggle">
+            <input type="checkbox" ${this.data.form.attackerEffects && this.data.form.attackerEffects.includes(effect.key) ? 'checked' : ''} onchange="pageInstance.onToggleAttackerEffect({currentTarget: {dataset: {key: '${effect.key}'}}})">
+          </div>
+        `;
+        attackerEffectGrid.appendChild(effectCard);
+      });
+    }
+    
+    // 渲染受击方buff
+    const targetEffectGrid = document.getElementById('target-effect-grid');
+    if (targetEffectGrid) {
+      targetEffectGrid.innerHTML = '';
+      const targetEffects = this.data.targetEffectOptions || [];
+      targetEffects.forEach(effect => {
+        const effectCard = document.createElement('div');
+        effectCard.className = 'effect-card';
+        effectCard.innerHTML = `
+          <div class="effect-content">
+            <div class="effect-title">${effect.label}</div>
+            <div class="effect-copy">${effect.description}</div>
+          </div>
+          <div class="effect-toggle">
+            <input type="checkbox" ${this.data.form.targetEffects && this.data.form.targetEffects.includes(effect.key) ? 'checked' : ''} onchange="pageInstance.onToggleTargetEffect({currentTarget: {dataset: {key: '${effect.key}'}}})">
+          </div>
+        `;
+        targetEffectGrid.appendChild(effectCard);
+      });
     }
     
     const heroPortraitRevealHint = document.getElementById('hero-portrait-reveal-hint');

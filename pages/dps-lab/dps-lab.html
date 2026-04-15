@@ -27,7 +27,9 @@
     <div class="floating-stage-title" id="floating-stage-title">
       <span class="floating-stage-copy"> 大 道 至 简 匠 心 至 臻</span>
     </div>
-    <div class="floating-reveal-handle" id="floating-reveal-handle">
+    <div class="floating-reveal-handle" id="floating-reveal-handle"
+      ontouchstart="pageInstance.onPortraitRevealStart(event)" ontouchmove="pageInstance.onPortraitRevealMove(event)"
+      ontouchend="pageInstance.onPortraitRevealEnd()">
       <div class="hero-reveal-bridge floating-reveal-bridge">
         <div class="portrait-stage-handle-bar"></div>
         <span class="portrait-stage-handle-text" id="portrait-reveal-hint">下拉展开背景</span>
@@ -46,7 +48,9 @@
           <div class="hero-brand">
             <img class="hero-logo" id="hero-logo" src="../../assets/dps-lab/logo-light.webp" alt="logo">
             <div class="hero-texts">
-              <div class="hero-reveal-bridge-shell hero-reveal-bridge-shell-inline" id="hero-reveal-bridge-shell">
+              <div class="hero-reveal-bridge-shell hero-reveal-bridge-shell-inline" id="hero-reveal-bridge-shell"
+                ontouchstart="pageInstance.onPortraitRevealStart(event)"
+                ontouchmove="pageInstance.onPortraitRevealMove(event)" ontouchend="pageInstance.onPortraitRevealEnd()">
                 <div class="hero-reveal-bridge">
                   <div class="portrait-stage-handle-bar"></div>
                   <span class="portrait-stage-handle-text" id="hero-portrait-reveal-hint">下拉展开背景</span>
@@ -56,7 +60,7 @@
               <span class="hero-title">CALCULATOR</span>
             </div>
           </div>
-          <div class="theme-switch" id="theme-switch">极昼</div>
+          <div class="theme-switch" id="theme-switch" onclick="pageInstance.onToggleTheme()">极昼</div>
         </div>
         <div class="hero-tags">
           <span class="hero-tag">Powered By ARTINX</span>
