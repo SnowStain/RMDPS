@@ -1,0 +1,507 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DPS Lab</title>
+  <link rel="stylesheet" href="dps-lab.css">
+</head>
+<body>
+  <div
+    class="page-shell theme-light"
+    id="page-shell"
+  >
+    <div
+      class="page-backdrop-art"
+      id="page-backdrop-art"
+    >
+      <img
+        class="page-backdrop-art-image"
+        id="page-backdrop-art-image"
+        src="../../../assets/dps-lab/backdrop-light.jpg"
+        alt="backdrop"
+      >
+      <div class="page-backdrop-art-blend" id="page-backdrop-art-blend"></div>
+    </div>
+    <div class="page-backdrop-art-grid" id="page-backdrop-art-grid"></div>
+    <div class="page-backdrop-shade" id="page-backdrop-shade"></div>
+    <div
+      class="page-content-frost page-content-frost-light"
+      id="page-content-frost"
+    ></div>
+    <div class="page-grid" id="page-grid"></div>
+    <div class="page-glow glow-left"></div>
+    <div class="page-glow glow-right"></div>
+    <div class="page-glow glow-bottom"></div>
+    <div class="page-orbit orbit-one"></div>
+    <div class="page-orbit orbit-two"></div>
+    <div
+      class="floating-stage-title"
+      id="floating-stage-title"
+    >
+      <span class="floating-stage-copy"> 大 道 至 简 匠 心 至 臻</span>
+    </div>
+    <div
+      class="floating-reveal-handle"
+      id="floating-reveal-handle"
+    >
+      <div class="hero-reveal-bridge floating-reveal-bridge">
+        <div class="portrait-stage-handle-bar"></div>
+        <span class="portrait-stage-handle-text" id="portrait-reveal-hint">下拉展开背景</span>
+      </div>
+    </div>
+
+    <div
+      class="page-content"
+      id="page-content"
+    >
+      <div
+        class="portrait-stage-shell"
+        id="portrait-stage-shell"
+      >
+        <div class="portrait-stage-copy portrait-stage-copy-standalone">
+          <span class="portrait-stage-title">大 道 至 简 匠 心 至 臻</span>
+        </div>
+      </div>
+
+      <div class="hero-card">
+        <div class="hero-top">
+          <div class="hero-brand">
+            <img
+              class="hero-logo"
+              id="hero-logo"
+              src="../../../assets/dps-lab/logo-light.jpg"
+              alt="logo"
+            >
+            <div class="hero-texts">
+              <div
+                class="hero-reveal-bridge-shell hero-reveal-bridge-shell-inline"
+                id="hero-reveal-bridge-shell"
+              >
+                <div class="hero-reveal-bridge">
+                  <div class="portrait-stage-handle-bar"></div>
+                  <span class="portrait-stage-handle-text" id="hero-portrait-reveal-hint">下拉展开背景</span>
+                </div>
+              </div>
+              <span class="hero-eyebrow">RoboMaster DAMAGE</span>
+              <span class="hero-title">CALCULATOR</span>
+            </div>
+          </div>
+          <div
+            class="theme-switch"
+            id="theme-switch"
+          >极昼</div>
+        </div>
+        <div class="hero-tags">
+          <span class="hero-tag">Powered By ARTINX</span>
+        </div>
+      </div>
+
+      <div class="panel-card compact">
+        <div class="panel-header">
+          <div class="panel-heading-inline">
+            <span class="panel-kicker">ATTACKER</span>
+            <span class="panel-title panel-title-inline">攻击方</span>
+          </div>
+        </div>
+        <div class="field-grid">
+          <div class="field-item field-item-half">
+            <span class="field-label">攻方</span>
+            <div class="picker-container">
+              <select class="picker-value" id="attacker-role">
+                <option value="hero">英雄</option>
+                <option value="infantry">步兵</option>
+                <option value="sentry" selected>哨兵</option>
+                <option value="drone">无人机</option>
+              </select>
+            </div>
+          </div>
+          <div class="field-item field-item-half" id="attacker-profile-container">
+            <span class="field-label">配置</span>
+            <div class="picker-container">
+              <select class="picker-value" id="attacker-profile">
+                <option value="auto" selected>全自动</option>
+                <option value="semi">半自动</option>
+              </select>
+            </div>
+          </div>
+          <div class="field-item field-item-half" id="attacker-posture-container">
+            <span class="field-label">姿态</span>
+            <div class="picker-container">
+              <select class="picker-value" id="attacker-posture">
+                <option value="mobile">移动姿态</option>
+                <option value="attack" selected>进攻姿态</option>
+                <option value="defense">防御姿态</option>
+              </select>
+            </div>
+          </div>
+          <div class="field-item full-span control-cluster">
+            <div class="mini-slider">
+              <span class="mini-label">分析时长</span>
+              <div class="mini-value-input">
+                <input
+                  class="slider-input"
+                  type="number"
+                  id="duration-input"
+                  value="60"
+                >
+                <span class="slider-input-suffix">s</span>
+              </div>
+            </div>
+            <div class="control-slider-shell shell-duration">
+              <div class="control-slider-rail"></div>
+              <input
+                type="range"
+                class="control-slider slider-duration"
+                min="15"
+                max="240"
+                step="5"
+                id="duration-slider"
+                value="60"
+              >
+            </div>
+            <div class="mini-slider top-gap">
+              <span class="mini-label">请求射速</span>
+              <div class="mini-value-input">
+                <input
+                  class="slider-input"
+                  type="number"
+                  step="0.5"
+                  id="fire-rate-input"
+                  value="15"
+                >
+                <span class="slider-input-suffix">Hz</span>
+              </div>
+            </div>
+            <div class="control-slider-shell shell-fire">
+              <div class="control-slider-rail"></div>
+              <input
+                type="range"
+                class="control-slider slider-fire"
+                min="0"
+                max="30"
+                step="0.5"
+                id="fire-rate-slider"
+                value="15"
+              >
+            </div>
+            <div class="mini-slider top-gap">
+              <span class="mini-label">命中率</span>
+              <div class="mini-value-input">
+                <input
+                  class="slider-input"
+                  type="number"
+                  step="5"
+                  id="hit-rate-input"
+                  value="100"
+                >
+                <span class="slider-input-suffix">%</span>
+              </div>
+            </div>
+            <div class="control-slider-shell shell-hit">
+              <div class="control-slider-rail"></div>
+              <input
+                type="range"
+                class="control-slider slider-hit"
+                min="0"
+                max="100"
+                step="5"
+                id="hit-rate-slider"
+                value="100"
+              >
+            </div>
+            <div class="mini-slider top-gap">
+              <span class="mini-label">初始热量</span>
+              <div class="mini-value-input">
+                <input
+                  class="slider-input"
+                  type="number"
+                  step="10"
+                  id="heat-input"
+                  value="0"
+                >
+                <span class="slider-input-suffix"> </span>
+              </div>
+            </div>
+            <div class="control-slider-shell shell-heat">
+              <div class="control-slider-rail"></div>
+              <input
+                type="range"
+                class="control-slider slider-heat"
+                min="0"
+                max="300"
+                step="10"
+                id="heat-slider"
+                value="0"
+              >
+            </div>
+          </div>
+          <div class="field-item full-span field-note">
+            <span id="attacker-note">哨兵全自动配置按 400 血 / 260 热量上限 / 30/s 冷却 / 100W 底盘功率计算；进攻姿态前 180 秒附带 3 倍冷却增益，之后衰减为 2 倍 </span>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel-card compact">
+        <div class="panel-header">
+          <div class="panel-heading-inline">
+            <span class="panel-kicker">TARGET</span>
+            <span class="panel-title panel-title-inline">受击方</span>
+          </div>
+        </div>
+        <div class="field-grid">
+          <div class="field-item field-item-half">
+            <span class="field-label">单位</span>
+            <div class="picker-container">
+              <select class="picker-value" id="target-role">
+                <option value="base">基地</option>
+                <option value="outpost" selected>前哨站</option>
+                <option value="infantry">步兵</option>
+                <option value="hero">英雄</option>
+                <option value="sentry">哨兵</option>
+                <option value="engineer">工程</option>
+              </select>
+            </div>
+          </div>
+          <div class="field-item field-item-half" id="target-profile-container">
+            <span class="field-label">配置</span>
+            <div class="picker-container">
+              <select class="picker-value" id="target-profile">
+                <option value="auto" selected>全自动</option>
+                <option value="semi">半自动</option>
+              </select>
+            </div>
+          </div>
+          <div class="field-item field-item-half" id="target-posture-container">
+            <span class="field-label">姿态</span>
+            <div class="picker-container">
+              <select class="picker-value" id="target-posture">
+                <option value="mobile" selected>移动姿态</option>
+                <option value="attack">进攻姿态</option>
+                <option value="defense">防御姿态</option>
+              </select>
+            </div>
+          </div>
+          <div class="field-item field-item-half">
+            <span class="field-label">受击部位</span>
+            <div class="picker-container">
+              <select class="picker-value" id="target-part">
+                <option value="central_plate" selected>中部装甲板</option>
+              </select>
+            </div>
+          </div>
+          <div class="field-item field-item-half target-health-field">
+            <span class="field-label">当前血量</span>
+            <span class="picker-value target-health-value" id="target-health-value">1500 / 1500</span>
+            <div class="target-health-inline-shell">
+              <div class="slider-wrap-rail target-health-inline-rail"></div>
+              <input
+                type="range"
+                class="target-health-inline-slider"
+                min="0"
+                max="100"
+                step="5"
+                id="target-health-slider"
+                value="100"
+              >
+            </div>
+            <div class="range-labels target-health-inline-labels">
+              <span>0 血</span>
+              <span>满血</span>
+            </div>
+          </div>
+          <div class="field-item full-span control-cluster" id="outpost-window-control">
+            <div class="mini-slider">
+              <span class="mini-label">前哨可攻击窗口</span>
+              <div class="mini-value-input">
+                <input
+                  class="slider-input"
+                  type="number"
+                  step="5"
+                  id="outpost-window-input"
+                  value="120"
+                >
+                <span class="slider-input-suffix">deg</span>
+              </div>
+            </div>
+            <div class="control-slider-shell shell-window">
+              <div class="control-slider-rail"></div>
+              <input
+                type="range"
+                class="control-slider slider-window"
+                min="0"
+                max="360"
+                step="5"
+                id="outpost-window-slider"
+                value="120"
+              >
+            </div>
+            <div class="range-labels">
+              <span>0°</span>
+              <span id="outpost-window-ratio">窗口折算 33.33%</span>
+              <span>360°</span>
+            </div>
+          </div>
+          <div class="field-item full-span field-note">
+            <span id="target-note">前哨站支持普通装甲板、上方装甲板和护甲未展开三种状态 </span>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel-card compact">
+        <div class="panel-header">
+          <div class="panel-heading-inline">
+            <span class="panel-kicker">BUFFS / DEBUFFS</span>
+            <span class="panel-title panel-title-inline">增益 / 减益</span>
+          </div>
+        </div>
+        <span class="section-label">攻击方状态</span>
+        <div class="effect-grid" id="attacker-effect-grid">
+          <!-- 攻击方状态将通过JavaScript动态生成 -->
+        </div>
+        <span class="section-label section-gap">受击方状态</span>
+        <div class="effect-grid" id="target-effect-grid">
+          <!-- 受击方状态将通过JavaScript动态生成 -->
+        </div>
+      </div>
+
+      <div class="panel-card compact">
+        <div class="panel-header align-center">
+          <div class="panel-heading-inline">
+            <span class="panel-kicker">TIMELINE</span>
+            <span class="panel-title panel-title-inline">出伤进程</span>
+          </div>
+        </div>
+        <span class="section-label">攻击方轨道</span>
+        <div id="attacker-timeline-board" class="timeline-board">
+          <!-- 攻击方轨道将通过JavaScript动态生成 -->
+        </div>
+        <span class="section-label section-gap">受击方轨道</span>
+        <div id="target-timeline-board" class="timeline-board timeline-board-target">
+          <!-- 受击方轨道将通过JavaScript动态生成 -->
+        </div>
+      </div>
+
+      <div class="panel-card compact">
+        <div class="panel-header align-center">
+          <div class="panel-heading-inline">
+            <span class="panel-kicker">DATA</span>
+            <span class="panel-title panel-title-inline">数据分析</span>
+          </div>
+        </div>
+        <div class="metric-grid" id="metric-grid">
+          <!-- 数据分析将通过JavaScript动态生成 -->
+        </div>
+        <div class="summary-box" id="summary-box">
+          <!-- 分析摘要将通过JavaScript动态生成 -->
+        </div>
+        <div
+          class="summary-box taunt-box"
+          id="taunt-box"
+        >
+          <!-- 分析评价将通过JavaScript动态生成 -->
+        </div>
+      </div>
+
+      <div class="panel-card compact">
+        <div class="panel-header align-center">
+          <div class="panel-heading-inline">
+            <span class="panel-kicker">CURVES</span>
+            <span class="panel-title panel-title-inline">数值曲线</span>
+          </div>
+          <div
+            class="theme-switch mini"
+            id="reset-chart-viewport"
+          >重置视图</div>
+        </div>
+        <span class="section-label chart-gesture-note">双指缩放或平移时间轴 </span>
+
+        <div class="chart-card">
+          <div class="chart-head">
+            <div>
+              <span class="chart-title" id="output-chart-title">输出伤害</span>
+              <span class="chart-subtitle" id="output-chart-subtitle">每秒伤害与总伤害</span>
+            </div>
+            <div class="chart-chip" id="output-chart-unit">单位：伤害</div>
+          </div>
+          <div class="legend-row" id="output-chart-legend">
+            <!-- 图例将通过JavaScript动态生成 -->
+          </div>
+          <div
+            id="outputChartWrap"
+            class="chart-touch-layer"
+            data-chart-key="output"
+          >
+            <canvas
+              id="outputChart"
+              class="chart-canvas"
+              width="300"
+              height="220"
+            ></canvas>
+          </div>
+        </div>
+
+        <div class="chart-card">
+          <div class="chart-head">
+            <div>
+              <span class="chart-title" id="thermal-chart-title">热量变化</span>
+              <span class="chart-subtitle" id="thermal-chart-subtitle">热量生成与冷却</span>
+            </div>
+            <div class="chart-chip" id="thermal-chart-unit">单位：热量</div>
+          </div>
+          <div class="legend-row" id="thermal-chart-legend">
+            <!-- 图例将通过JavaScript动态生成 -->
+          </div>
+          <div
+            id="thermalChartWrap"
+            class="chart-touch-layer"
+            data-chart-key="thermal"
+          >
+            <canvas
+              id="thermalChart"
+              class="chart-canvas"
+              width="300"
+              height="220"
+            ></canvas>
+          </div>
+        </div>
+
+        <div class="chart-card">
+          <div class="chart-head">
+            <div>
+              <span class="chart-title" id="target-chart-title">目标状态</span>
+              <span class="chart-subtitle" id="target-chart-subtitle">血量与伤害承受</span>
+            </div>
+            <div class="chart-chip" id="target-chart-unit">单位：伤害</div>
+          </div>
+          <div class="legend-row" id="target-chart-legend">
+            <!-- 图例将通过JavaScript动态生成 -->
+          </div>
+          <div
+            id="targetChartWrap"
+            class="chart-touch-layer"
+            data-chart-key="target"
+          >
+            <canvas
+              id="targetChart"
+              class="chart-canvas"
+              width="300"
+              height="220"
+            ></canvas>
+          </div>
+        </div>
+
+        <div class="lab-footer-note">
+          <span class="lab-footer-copy">由 南科大ARTINX战队-归尘 开发，仍在优化阶段 如有不合理之处敬请谅解</span>
+          <span class="lab-footer-version">版本号 v2.1.1</span>
+        </div>
+      </div>
+    </div>
+  </div>
+  <script src="../../../app.js"></script>
+  <script src="lib/damage-lab-core.js"></script>
+  <script src="lib/damage-lab-chart.js"></script>
+  <script src="lib/damage-lab-data.js"></script>
+  <script src="dps-lab.js"></script>
+</body>
+</html>

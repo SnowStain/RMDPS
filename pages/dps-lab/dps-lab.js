@@ -38,55 +38,43 @@ const LOGO_MULTI_TAP_RESET_MS = 1800;
 const BILIBILI_PROFILE_URL = 'https://space.bilibili.com/645940972';
 
 function getInitialWindowInfo() {
-  try {
-    if (typeof wx !== 'undefined' && wx.getWindowInfo) {
-      return wx.getWindowInfo();
-    }
-    if (typeof wx !== 'undefined' && wx.getSystemInfoSync) {
-      return wx.getSystemInfoSync();
-    }
-  } catch (error) {
-    return null;
-  }
-  return null;
+  return {
+    windowWidth: window.innerWidth,
+    windowHeight: window.innerHeight,
+    statusBarHeight: 24,
+    theme: window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+  };
 }
 
 function getMenuButtonRect() {
-  try {
-    if (typeof wx !== 'undefined' && wx.getMenuButtonBoundingClientRect) {
-      return wx.getMenuButtonBoundingClientRect();
-    }
-  } catch (error) {
-    return null;
-  }
-  return null;
-}
-
-function getSafeSystemSnapshot(getter) {
-  try {
-    if (typeof wx !== 'undefined' && typeof getter === 'function') {
-      const result = getter();
-      return result && typeof result === 'object' ? result : null;
-    }
-  } catch (error) {
-    return null;
-  }
-  return null;
+  return {
+    bottom: 50,
+    height: 32,
+    left: window.innerWidth - 100,
+    right: window.innerWidth - 20,
+    top: 18,
+    width: 80
+  };
 }
 
 function createScopedSelectorQuery(context) {
-  if (typeof wx === 'undefined' || !wx.createSelectorQuery) {
-    return null;
-  }
-  const query = wx.createSelectorQuery();
-  if (query && typeof query.in === 'function' && context) {
-    try {
-      return query.in(context);
-    } catch (error) {
-      return query;
+  return {
+    select(selector) {
+      return {
+        boundingClientRect(callback) {
+          const element = document.querySelector(selector);
+          if (element) {
+            const rect = element.getBoundingClientRect();
+            callback(rect);
+          } else {
+            callback(null);
+          }
+          return this;
+        },
+        exec() {}
+      };
     }
-  }
-  return query;
+  };
 }
 
 function mergeForm(currentForm, patch) {
@@ -342,17 +330,7 @@ function buildPortraitRevealState(revealOffsetPx, maxRevealPx, windowHeight, pag
 }
 
 function getSystemTheme(windowInfo) {
-  const appBaseInfo = getSafeSystemSnapshot(() => wx.getAppBaseInfo && wx.getAppBaseInfo());
-  const systemSetting = getSafeSystemSnapshot(() => wx.getSystemSetting && wx.getSystemSetting());
-  const systemInfo = getSafeSystemSnapshot(() => wx.getSystemInfoSync && wx.getSystemInfoSync());
-  const themeCandidates = [
-    windowInfo && windowInfo.theme,
-    appBaseInfo && appBaseInfo.theme,
-    systemSetting && systemSetting.theme,
-    systemInfo && systemInfo.theme,
-  ];
-  const matchedTheme = themeCandidates.find((theme) => theme === 'dark' || theme === 'light');
-  return matchedTheme || 'light';
+  return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
 }
 
 function noop() {}
@@ -366,60 +344,65 @@ const INITIAL_WINDOW_WIDTH = (INITIAL_WINDOW_INFO && INITIAL_WINDOW_INFO.windowW
 const INITIAL_CHART_WIDTH = Math.max(300, ((INITIAL_WINDOW_INFO && INITIAL_WINDOW_INFO.windowWidth) || 375) - 44);
 const INITIAL_PAGE_GRID_CELL_PX = Number((INITIAL_WINDOW_WIDTH / PAGE_GRID_COLUMN_COUNT).toFixed(2));
 
-Page({
-  data: Object.assign(
-    {
-      theme: INITIAL_THEME,
-      statusBarHeight: INITIAL_STATUS_BAR_HEIGHT,
-      chartWidth: INITIAL_CHART_WIDTH,
-      chartHeight: 220,
-      pageTopInsetPx: INITIAL_STATUS_BAR_HEIGHT + 10,
-      pageGridCellPx: INITIAL_PAGE_GRID_CELL_PX,
-      pageGridOffsetPx: 0,
-      floatingStageTitleTopPx: INITIAL_STATUS_BAR_HEIGHT + 6,
-      scrollShiftY: 0,
-      scrollScaleY: 1,
-      portraitRevealMaxPx: 420,
-      portraitRevealOffsetPx: 0,
-      portraitRevealProgress: 0,
-      portraitStageHeightPx: PORTRAIT_STAGE_BASE_PX,
-      portraitArtScale: 1.08,
-      portraitArtShiftY: 22,
-      portraitShadeOpacity: 0.64,
-      portraitFrostOpacity: 0.14,
-      portraitArtBlurPx: 2.6,
-      portraitArtSaturate: 0.9,
-      portraitArtBrightness: 0.93,
-      portraitArtImageOpacity: 0.9,
-      portraitArtGridOpacity: 0.26,
-      portraitArtBlendOpacity: 0.52,
-      portraitHandleTopPx: PORTRAIT_DRAGGER_MIN_TOP_PX,
-      portraitRevealHint: '下拉展开',
-      contentFocusProgress: 0,
-      showFloatingStageTitle: false,
-      darkLogo: '/assets/dps-lab/logo-dark.jpg',
-      lightLogo: '/assets/dps-lab/logo-light.jpg',
-      darkBackdrop: '/assets/dps-lab/backdrop-dark.jpg',
-      lightBackdrop: '/assets/dps-lab/backdrop-light.jpg',
-      activeTimelineTrackId: '',
-      activeTimelineTrackSide: '',
-    },
-    createDefaultPageState(),
-  ),
+// 页面数据
+let pageData = Object.assign(
+  {
+    theme: INITIAL_THEME,
+    statusBarHeight: INITIAL_STATUS_BAR_HEIGHT,
+    chartWidth: INITIAL_CHART_WIDTH,
+    chartHeight: 220,
+    pageTopInsetPx: INITIAL_STATUS_BAR_HEIGHT + 10,
+    pageGridCellPx: INITIAL_PAGE_GRID_CELL_PX,
+    pageGridOffsetPx: 0,
+    floatingStageTitleTopPx: INITIAL_STATUS_BAR_HEIGHT + 6,
+    scrollShiftY: 0,
+    scrollScaleY: 1,
+    portraitRevealMaxPx: 420,
+    portraitRevealOffsetPx: 0,
+    portraitRevealProgress: 0,
+    portraitStageHeightPx: PORTRAIT_STAGE_BASE_PX,
+    portraitArtScale: 1.08,
+    portraitArtShiftY: 22,
+    portraitShadeOpacity: 0.64,
+    portraitFrostOpacity: 0.14,
+    portraitArtBlurPx: 2.6,
+    portraitArtSaturate: 0.9,
+    portraitArtBrightness: 0.93,
+    portraitArtImageOpacity: 0.9,
+    portraitArtGridOpacity: 0.26,
+    portraitArtBlendOpacity: 0.52,
+    portraitHandleTopPx: PORTRAIT_DRAGGER_MIN_TOP_PX,
+    portraitRevealHint: '下拉展开',
+    contentFocusProgress: 0,
+    showFloatingStageTitle: false,
+    darkLogo: '../../../assets/dps-lab/logo-dark.jpg',
+    lightLogo: '../../../assets/dps-lab/logo-light.jpg',
+    darkBackdrop: '../../../assets/dps-lab/backdrop-dark.jpg',
+    lightBackdrop: '../../../assets/dps-lab/backdrop-light.jpg',
+    activeTimelineTrackId: '',
+    activeTimelineTrackSide: '',
+  },
+  createDefaultPageState(),
+);
 
+// 页面实例
+const pageInstance = {
+  data: pageData,
+  chartViewport: createDefaultViewport(),
+  chartGesture: null,
+  timelineDrag: null,
+  portraitRevealDrag: null,
+  isPageReady: false,
+  isPageDisposed: false,
+  pendingChartRender: false,
+  chartRenderScheduled: false,
+  currentScrollTop: 0,
+  scrollMotionResetTimer: null,
+  logoTapResetTimer: null,
+  logoTapCount: 0,
+  windowHeight: INITIAL_WINDOW_INFO.windowHeight || 812,
+  
   onLoad() {
-    this.chartViewport = createDefaultViewport();
-    this.chartGesture = null;
-    this.timelineDrag = null;
-    this.portraitRevealDrag = null;
-    this.isPageReady = false;
-    this.isPageDisposed = false;
-    this.pendingChartRender = false;
-    this.chartRenderScheduled = false;
-    this.currentScrollTop = 0;
-    this.scrollMotionResetTimer = null;
-    this.logoTapResetTimer = null;
-    this.logoTapCount = 0;
     const windowInfo = getInitialWindowInfo() || INITIAL_WINDOW_INFO || {};
     const menuButtonRect = getMenuButtonRect();
     const chartWidth = Math.max(300, (windowInfo.windowWidth || 375) - 44);
@@ -443,9 +426,7 @@ Page({
         this.scheduleDrawAllCharts();
       });
     };
-    if (wx.onThemeChange) {
-      wx.onThemeChange(this.themeChangeHandler);
-    }
+    window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', this.themeChangeHandler);
     this.setData({
       theme: getSystemTheme(windowInfo),
       statusBarHeight: windowInfo.statusBarHeight || 24,
@@ -460,19 +441,17 @@ Page({
       this.refreshPageState(this.data.form);
     });
   },
-
+  
   onReady() {
     this.isPageReady = true;
     this.scheduleDrawAllCharts();
     this.measurePageMetrics();
   },
-
+  
   onUnload() {
     this.isPageDisposed = true;
     this.isPageReady = false;
-    if (wx.offThemeChange && this.themeChangeHandler) {
-      wx.offThemeChange(this.themeChangeHandler);
-    }
+    window.matchMedia('(prefers-color-scheme: dark)').removeEventListener('change', this.themeChangeHandler);
     if (this.scrollMotionResetTimer) {
       clearTimeout(this.scrollMotionResetTimer);
       this.scrollMotionResetTimer = null;
@@ -482,7 +461,7 @@ Page({
       this.logoTapResetTimer = null;
     }
   },
-
+  
   onPageScroll(event) {
     const scrollTop = Number(event && event.scrollTop) || 0;
     this.currentScrollTop = scrollTop;
@@ -516,7 +495,7 @@ Page({
       showFloatingStageTitle: scrollReactiveState.showFloatingStageTitle,
     });
   },
-
+  
   scheduleDrawAllCharts() {
     if (this.isPageDisposed) {
       return;
@@ -541,14 +520,9 @@ Page({
       this.drawAllCharts();
     };
 
-    if (typeof wx !== 'undefined' && wx.nextTick) {
-      wx.nextTick(commitRender);
-      return;
-    }
-
     setTimeout(commitRender, 0);
   },
-
+  
   measurePageMetrics(callback) {
     const query = createScopedSelectorQuery(this);
     if (!query) {
@@ -569,7 +543,7 @@ Page({
       })
       .exec();
   },
-
+  
   onLogoTap() {
     this.logoTapCount += 1;
     if (this.logoTapResetTimer) {
@@ -587,20 +561,13 @@ Page({
     this.logoTapCount = 0;
     clearTimeout(this.logoTapResetTimer);
     this.logoTapResetTimer = null;
-    wx.navigateTo({
-      url: `/pages/dps-lab/webview/webview?url=${encodeURIComponent(BILIBILI_PROFILE_URL)}`,
-      fail: () => {
-        wx.setClipboardData({
-          data: BILIBILI_PROFILE_URL,
-        });
-      },
-    });
+    window.open(BILIBILI_PROFILE_URL, '_blank');
   },
-
+  
   getThemePalette() {
     return this.data.theme === 'dark' ? DARK_THEME : LIGHT_THEME;
   },
-
+  
   applyPortraitReveal(revealOffsetPx, callback) {
     this.setData(
       buildPortraitRevealState(
@@ -613,7 +580,7 @@ Page({
       callback,
     );
   },
-
+  
   onPortraitRevealStart(event) {
     const touch = event.touches && event.touches[0];
     if (!touch) {
@@ -629,7 +596,7 @@ Page({
       startOffsetPx: this.data.portraitRevealOffsetPx,
     };
   },
-
+  
   onPortraitRevealMove(event) {
     if (!this.portraitRevealDrag) {
       return;
@@ -650,7 +617,7 @@ Page({
 
     this.applyPortraitReveal(nextOffsetPx);
   },
-
+  
   onPortraitRevealEnd() {
     if (!this.portraitRevealDrag) {
       return;
@@ -665,7 +632,7 @@ Page({
       this.measurePageMetrics();
     });
   },
-
+  
   refreshPageState(formPatch, callback) {
     const nextState = buildPageState(formPatch);
     this.setData(nextState, () => {
@@ -673,7 +640,7 @@ Page({
       this.measurePageMetrics(callback);
     });
   },
-
+  
   drawAllCharts() {
     const charts = this.data.analysis && this.data.analysis.charts;
     if (!charts) {
@@ -684,7 +651,7 @@ Page({
     renderChart('thermalChart', charts.thermal, this.data.chartWidth, this.data.chartHeight, theme, this.chartViewport);
     renderChart('targetChart', charts.target, this.data.chartWidth, this.data.chartHeight, theme, this.chartViewport);
   },
-
+  
   onToggleTheme() {
     this.setData({
       theme: this.data.theme === 'dark' ? 'light' : 'dark',
@@ -692,13 +659,13 @@ Page({
       this.scheduleDrawAllCharts();
     });
   },
-
+  
   onPickerTap: noop,
-
+  
   onAnalyzeTap() {
     this.refreshPageState(this.data.form);
   },
-
+  
   onResetTap() {
     this.chartViewport = createDefaultViewport();
     this.chartGesture = null;
@@ -731,13 +698,13 @@ Page({
       this.measurePageMetrics();
     });
   },
-
+  
   onResetChartViewport() {
     this.chartViewport = createDefaultViewport();
     this.chartGesture = null;
     this.drawAllCharts();
   },
-
+  
   onTimelineDragStart(event) {
     const side = event.currentTarget.dataset.side;
     const effectKey = event.currentTarget.dataset.effectKey;
@@ -780,7 +747,7 @@ Page({
       })
       .exec();
   },
-
+  
   onTimelineDragMove(event) {
     const touches = event.touches || [];
     if (!this.timelineDrag || !touches.length) {
@@ -808,7 +775,7 @@ Page({
     this.timelineDrag.changed = true;
     this.setData(previewPatch);
   },
-
+  
   onTimelineDragEnd() {
     const dragState = this.timelineDrag;
     this.timelineDrag = null;
@@ -839,9 +806,9 @@ Page({
       });
     });
   },
-
+  
   onAttackerRoleChange(event) {
-    const role = this.data.attackerRoleOptions[Number(event.detail.value)];
+    const role = this.data.attackerRoleOptions[Number(event.target.value)];
     const patch = {
       attackerRole: role.key,
       attackerProfile: '',
@@ -854,24 +821,24 @@ Page({
     }
     this.refreshPageState(mergeForm(this.data.form, patch));
   },
-
+  
   onAttackerProfileChange(event) {
-    const option = this.data.attackerProfileOptions[Number(event.detail.value)];
+    const option = this.data.attackerProfileOptions[Number(event.target.value)];
     this.refreshPageState(mergeForm(this.data.form, { attackerProfile: option.key }));
   },
-
+  
   onAttackerLevelChange(event) {
-    const option = this.data.attackerLevelOptions[Number(event.detail.value)];
+    const option = this.data.attackerLevelOptions[Number(event.target.value)];
     this.refreshPageState(mergeForm(this.data.form, { attackerLevel: option.value }));
   },
-
+  
   onAttackerPostureChange(event) {
-    const option = this.data.attackerPostureOptions[Number(event.detail.value)];
+    const option = this.data.attackerPostureOptions[Number(event.target.value)];
     this.refreshPageState(mergeForm(this.data.form, { attackerPosture: option.key }));
   },
-
+  
   onTargetRoleChange(event) {
-    const role = this.data.targetRoleOptions[Number(event.detail.value)];
+    const role = this.data.targetRoleOptions[Number(event.target.value)];
     const patch = {
       targetRole: role.key,
       targetProfile: '',
@@ -884,76 +851,76 @@ Page({
     }
     this.refreshPageState(mergeForm(this.data.form, patch));
   },
-
+  
   onTargetProfileChange(event) {
-    const option = this.data.targetProfileOptions[Number(event.detail.value)];
+    const option = this.data.targetProfileOptions[Number(event.target.value)];
     this.refreshPageState(mergeForm(this.data.form, { targetProfile: option.key }));
   },
-
+  
   onTargetLevelChange(event) {
-    const option = this.data.targetLevelOptions[Number(event.detail.value)];
+    const option = this.data.targetLevelOptions[Number(event.target.value)];
     this.refreshPageState(mergeForm(this.data.form, { targetLevel: option.value }));
   },
-
+  
   onTargetPostureChange(event) {
-    const option = this.data.targetPostureOptions[Number(event.detail.value)];
+    const option = this.data.targetPostureOptions[Number(event.target.value)];
     this.refreshPageState(mergeForm(this.data.form, { targetPosture: option.key }));
   },
-
+  
   onTargetPartChange(event) {
-    const option = this.data.targetPartOptions[Number(event.detail.value)];
+    const option = this.data.targetPartOptions[Number(event.target.value)];
     this.refreshPageState(mergeForm(this.data.form, { targetPart: option.key }));
   },
-
+  
   onOutpostWindowChange(event) {
-    this.refreshPageState(mergeForm(this.data.form, { targetWindowDegrees: event.detail.value }));
+    this.refreshPageState(mergeForm(this.data.form, { targetWindowDegrees: event.target.value }));
   },
-
+  
   onOutpostWindowInputCommit(event) {
-    const value = normalizeNumericValue(event.detail.value, this.data.form.targetWindowDegrees, 0, 360, 5);
+    const value = normalizeNumericValue(event.target.value, this.data.form.targetWindowDegrees, 0, 360, 5);
     this.refreshPageState(mergeForm(this.data.form, { targetWindowDegrees: value }));
   },
-
+  
   onDurationChange(event) {
-    this.refreshPageState(mergeForm(this.data.form, { durationSec: event.detail.value }));
+    this.refreshPageState(mergeForm(this.data.form, { durationSec: event.target.value }));
   },
-
+  
   onDurationInputCommit(event) {
-    const value = normalizeNumericValue(event.detail.value, this.data.form.durationSec, 15, 240, 1);
+    const value = normalizeNumericValue(event.target.value, this.data.form.durationSec, 15, 240, 1);
     this.refreshPageState(mergeForm(this.data.form, { durationSec: value }));
   },
-
+  
   onFireRateChange(event) {
-    this.refreshPageState(mergeForm(this.data.form, { requestedFireRateHz: event.detail.value }));
+    this.refreshPageState(mergeForm(this.data.form, { requestedFireRateHz: event.target.value }));
   },
-
+  
   onFireRateInputCommit(event) {
-    const value = normalizeNumericValue(event.detail.value, this.data.form.requestedFireRateHz, 0, 30, 0.1);
+    const value = normalizeNumericValue(event.target.value, this.data.form.requestedFireRateHz, 0, 30, 0.1);
     this.refreshPageState(mergeForm(this.data.form, { requestedFireRateHz: value }));
   },
-
+  
   onHitRateChange(event) {
-    this.refreshPageState(mergeForm(this.data.form, { hitRatePercent: event.detail.value }));
+    this.refreshPageState(mergeForm(this.data.form, { hitRatePercent: event.target.value }));
   },
-
+  
   onHitRateInputCommit(event) {
-    const value = normalizeNumericValue(event.detail.value, this.data.form.hitRatePercent, 0, 100, 1);
+    const value = normalizeNumericValue(event.target.value, this.data.form.hitRatePercent, 0, 100, 1);
     this.refreshPageState(mergeForm(this.data.form, { hitRatePercent: value }));
   },
-
+  
   onHeatChange(event) {
-    this.refreshPageState(mergeForm(this.data.form, { initialHeat: event.detail.value }));
+    this.refreshPageState(mergeForm(this.data.form, { initialHeat: event.target.value }));
   },
-
+  
   onHeatInputCommit(event) {
-    const value = normalizeNumericValue(event.detail.value, this.data.form.initialHeat, 0, 300, 1);
+    const value = normalizeNumericValue(event.target.value, this.data.form.initialHeat, 0, 300, 1);
     this.refreshPageState(mergeForm(this.data.form, { initialHeat: value }));
   },
-
+  
   onTargetHealthChange(event) {
-    this.refreshPageState(mergeForm(this.data.form, { targetHealthPercent: event.detail.value }));
+    this.refreshPageState(mergeForm(this.data.form, { targetHealthPercent: event.target.value }));
   },
-
+  
   updateEffectSchedule(side, effectKey, patch, callback) {
     const scheduleKey = side === 'attacker' ? 'attackerSchedules' : 'targetSchedules';
     const schedules = Array.isArray(this.data.form[scheduleKey]) ? this.data.form[scheduleKey].slice() : [];
@@ -967,13 +934,13 @@ Page({
     schedules[scheduleIndex] = Object.assign({}, schedules[scheduleIndex], patch);
     this.refreshPageState(mergeForm(this.data.form, { [scheduleKey]: schedules }), callback);
   },
-
+  
   getTimelineTrack(side, effectKey) {
     const listKey = side === 'attacker' ? 'attackerTimelineTracks' : 'targetTimelineTracks';
     const tracks = this.data[listKey] || [];
     return tracks.find((item) => item.effectKey === effectKey) || null;
   },
-
+  
   onToggleAttackerEffect(event) {
     const key = event.currentTarget.dataset.key;
     const selected = new Set(this.data.form.attackerEffects || []);
@@ -984,7 +951,7 @@ Page({
     }
     this.refreshPageState(mergeForm(this.data.form, { attackerEffects: Array.from(selected) }));
   },
-
+  
   onToggleTargetEffect(event) {
     const key = event.currentTarget.dataset.key;
     const selected = new Set(this.data.form.targetEffects || []);
@@ -995,7 +962,7 @@ Page({
     }
     this.refreshPageState(mergeForm(this.data.form, { targetEffects: Array.from(selected) }));
   },
-
+  
   onEffectVariantChange(event) {
     const side = event.currentTarget.dataset.side;
     const effectKey = event.currentTarget.dataset.effectKey;
@@ -1003,14 +970,14 @@ Page({
     if (!track || !track.variantOptions || !track.variantOptions.length) {
       return;
     }
-    const option = track.variantOptions[Number(event.detail.value)] || track.variantOptions[0];
+    const option = track.variantOptions[Number(event.target.value)] || track.variantOptions[0];
     const fixedDurationSec = Number(option.durationSec) || Number(track.fixedDurationSec) || 0;
     this.updateEffectSchedule(side, effectKey, {
       variantKey: option.key,
       endSec: Number((track.startSec + fixedDurationSec).toFixed(1)),
     });
   },
-
+  
   onEffectDurationChange(event) {
     const side = event.currentTarget.dataset.side;
     const effectKey = event.currentTarget.dataset.effectKey;
@@ -1018,14 +985,14 @@ Page({
     if (!track || !track.durationOptions || !track.durationOptions.length) {
       return;
     }
-    const option = track.durationOptions[Number(event.detail.value)] || track.durationOptions[0];
+    const option = track.durationOptions[Number(event.target.value)] || track.durationOptions[0];
     const fixedDurationSec = Number(option.durationSec) || 0;
     this.updateEffectSchedule(side, effectKey, {
       durationKey: option.key,
       endSec: Number((track.startSec + fixedDurationSec).toFixed(1)),
     });
   },
-
+  
   onEffectScheduleStartChange(event) {
     const side = event.currentTarget.dataset.side;
     const effectKey = event.currentTarget.dataset.effectKey;
@@ -1034,14 +1001,14 @@ Page({
       return;
     }
     const fixedDurationSec = Number(track.fixedDurationSec) || 0;
-    const startSec = clamp(Number(event.detail.value), track.timelineMin, track.timelineMax - fixedDurationSec);
+    const startSec = clamp(Number(event.target.value), track.timelineMin, track.timelineMax - fixedDurationSec);
     const patch = { startSec };
     if (fixedDurationSec > 0) {
       patch.endSec = Number((startSec + fixedDurationSec).toFixed(1));
     }
     this.updateEffectSchedule(side, effectKey, patch);
   },
-
+  
   onEffectScheduleEndChange(event) {
     const side = event.currentTarget.dataset.side;
     const effectKey = event.currentTarget.dataset.effectKey;
@@ -1050,14 +1017,14 @@ Page({
       return;
     }
     const fixedDurationSec = Number(track.fixedDurationSec) || 0;
-    const endSec = clamp(Number(event.detail.value), track.timelineMin + fixedDurationSec, track.timelineMax);
+    const endSec = clamp(Number(event.target.value), track.timelineMin + fixedDurationSec, track.timelineMax);
     const patch = { endSec };
     if (fixedDurationSec > 0) {
       patch.startSec = Number((endSec - fixedDurationSec).toFixed(1));
     }
     this.updateEffectSchedule(side, effectKey, patch);
   },
-
+  
   onChartTouchStart(event) {
     const touches = event.touches || [];
     if (touches.length < 2) {
@@ -1087,7 +1054,7 @@ Page({
       })
       .exec();
   },
-
+  
   onChartTouchMove(event) {
     const touches = event.touches || [];
     if (touches.length < 2 || !this.chartGesture) {
@@ -1104,11 +1071,574 @@ Page({
     };
     this.drawAllCharts();
   },
-
+  
   onChartTouchEnd(event) {
     const touches = event.touches || [];
     if (touches.length < 2) {
       this.chartGesture = null;
     }
   },
+  
+  // 自定义setData方法，用于更新页面数据并刷新UI
+  setData(data, callback) {
+    // 更新数据
+    Object.assign(this.data, data);
+    
+    // 刷新UI
+    this.updateUI();
+    
+    // 执行回调
+    if (typeof callback === 'function') {
+      callback();
+    }
+  },
+  
+  // 更新UI
+  updateUI() {
+    // 更新主题
+    const pageShell = document.getElementById('page-shell');
+    if (pageShell) {
+      pageShell.className = `page-shell ${this.data.theme === 'dark' ? 'theme-dark' : 'theme-light'}`;
+    }
+    
+    // 更新背景图片
+    const backdropImage = document.getElementById('page-backdrop-art-image');
+    if (backdropImage) {
+      backdropImage.src = this.data.theme === 'dark' ? this.data.darkBackdrop : this.data.lightBackdrop;
+    }
+    
+    // 更新logo
+    const heroLogo = document.getElementById('hero-logo');
+    if (heroLogo) {
+      heroLogo.src = this.data.theme === 'dark' ? this.data.darkLogo : this.data.lightLogo;
+    }
+    
+    // 更新主题切换按钮
+    const themeSwitch = document.getElementById('theme-switch');
+    if (themeSwitch) {
+      themeSwitch.textContent = this.data.theme === 'dark' ? '霓虹' : '极昼';
+    }
+    
+    // 更新下拉提示
+    const portraitRevealHint = document.getElementById('portrait-reveal-hint');
+    if (portraitRevealHint) {
+      portraitRevealHint.textContent = this.data.portraitRevealHint;
+    }
+    
+    const heroPortraitRevealHint = document.getElementById('hero-portrait-reveal-hint');
+    if (heroPortraitRevealHint) {
+      heroPortraitRevealHint.textContent = this.data.portraitRevealHint;
+    }
+    
+    // 更新肖像舞台高度
+    const portraitStageShell = document.getElementById('portrait-stage-shell');
+    if (portraitStageShell) {
+      portraitStageShell.style.height = `${this.data.portraitStageHeightPx}px`;
+    }
+    
+    // 更新浮动标题显示
+    const floatingStageTitle = document.getElementById('floating-stage-title');
+    if (floatingStageTitle) {
+      floatingStageTitle.className = `floating-stage-title ${this.data.showFloatingStageTitle ? 'floating-stage-title-visible' : ''}`;
+    }
+    
+    // 更新攻击者和目标状态
+    this.updateAttackerEffects();
+    this.updateTargetEffects();
+    
+    // 更新时间线
+    this.updateTimeline();
+    
+    // 更新数据分析
+    this.updateAnalysis();
+    
+    // 更新图表
+    this.drawAllCharts();
+  },
+  
+  // 更新攻击方状态
+  updateAttackerEffects() {
+    const attackerEffectGrid = document.getElementById('attacker-effect-grid');
+    if (!attackerEffectGrid) return;
+    
+    // 清空现有内容
+    attackerEffectGrid.innerHTML = '';
+    
+    // 生成攻击方状态
+    if (this.data.attackerEffectRows) {
+      this.data.attackerEffectRows.forEach((row, rowIndex) => {
+        const rowElement = document.createElement('div');
+        rowElement.className = 'effect-row';
+        
+        row.forEach((effect) => {
+          const effectCard = document.createElement('div');
+          effectCard.className = `effect-card ${effect.active ? 'effect-active' : ''}`;
+          effectCard.dataset.key = effect.key;
+          
+          effectCard.innerHTML = `
+            ${effect.active ? '<div class="effect-selected-indicator">已选中</div>' : ''}
+            <div class="effect-top">
+              <span class="effect-title">${effect.label}</span>
+              <span class="effect-pill effect-pill-${effect.tone}">${effect.category}</span>
+            </div>
+            ${effect.active && effect.hasVariants ? `
+              <select class="timeline-picker effect-picker-inline" data-side="attacker" data-effect-key="${effect.key}" onchange="pageInstance.onEffectVariantChange(event)">
+                ${effect.variantOptions.map((option, index) => `<option value="${index}" ${effect.variantIndex === index ? 'selected' : ''}>${option.label}</option>`).join('')}
+              </select>
+            ` : ''}
+            ${effect.active && effect.hasDurationOptions ? `
+              <select class="timeline-picker effect-picker-inline" data-side="attacker" data-effect-key="${effect.key}" onchange="pageInstance.onEffectDurationChange(event)">
+                ${effect.durationOptions.map((option, index) => `<option value="${index}" ${effect.durationIndex === index ? 'selected' : ''}>${option.label}</option>`).join('')}
+              </select>
+            ` : ''}
+            ${effect.active && (effect.variantLabel || effect.durationLabel) ? `<span class="effect-meta">${effect.variantLabel}${effect.variantLabel && effect.durationLabel ? ' · ' : ''}${effect.durationLabel}${effect.timingText ? ' · ' : ''}${effect.timingText}</span>` : ''}
+            ${effect.badges.length ? `
+              <div class="effect-badge-row">
+                ${effect.badges.map((badge) => `<span class="effect-badge effect-badge-${badge.tone}">${badge.text}</span>`).join('')}
+              </div>
+            ` : ''}
+            <div class="effect-copy">
+              ${effect.descriptionSegments.map((segment) => `<span class="effect-copy-segment ${segment.isNumber ? 'effect-copy-number' : ''}">${segment.text}</span>`).join('')}
+            </div>
+          `;
+          
+          effectCard.addEventListener('click', (event) => {
+            if (!event.target.tagName === 'SELECT') {
+              this.onToggleAttackerEffect(event);
+            }
+          });
+          
+          rowElement.appendChild(effectCard);
+        });
+        
+        attackerEffectGrid.appendChild(rowElement);
+      });
+    }
+  },
+  
+  // 更新受击方状态
+  updateTargetEffects() {
+    const targetEffectGrid = document.getElementById('target-effect-grid');
+    if (!targetEffectGrid) return;
+    
+    // 清空现有内容
+    targetEffectGrid.innerHTML = '';
+    
+    // 生成受击方状态
+    if (this.data.targetEffectRows) {
+      this.data.targetEffectRows.forEach((row, rowIndex) => {
+        const rowElement = document.createElement('div');
+        rowElement.className = 'effect-row';
+        
+        row.forEach((effect) => {
+          const effectCard = document.createElement('div');
+          effectCard.className = `effect-card ${effect.active ? 'effect-active target-active' : ''}`;
+          effectCard.dataset.key = effect.key;
+          
+          effectCard.innerHTML = `
+            ${effect.active ? '<div class="effect-selected-indicator target-indicator">已选中</div>' : ''}
+            <div class="effect-top">
+              <span class="effect-title">${effect.label}</span>
+              <span class="effect-pill effect-pill-${effect.tone}">${effect.category}</span>
+            </div>
+            ${effect.active && effect.hasVariants ? `
+              <select class="timeline-picker effect-picker-inline" data-side="target" data-effect-key="${effect.key}" onchange="pageInstance.onEffectVariantChange(event)">
+                ${effect.variantOptions.map((option, index) => `<option value="${index}" ${effect.variantIndex === index ? 'selected' : ''}>${option.label}</option>`).join('')}
+              </select>
+            ` : ''}
+            ${effect.active && effect.hasDurationOptions ? `
+              <select class="timeline-picker effect-picker-inline" data-side="target" data-effect-key="${effect.key}" onchange="pageInstance.onEffectDurationChange(event)">
+                ${effect.durationOptions.map((option, index) => `<option value="${index}" ${effect.durationIndex === index ? 'selected' : ''}>${option.label}</option>`).join('')}
+              </select>
+            ` : ''}
+            ${effect.active && (effect.variantLabel || effect.durationLabel) ? `<span class="effect-meta">${effect.variantLabel}${effect.variantLabel && effect.durationLabel ? ' · ' : ''}${effect.durationLabel}${effect.timingText ? ' · ' : ''}${effect.timingText}</span>` : ''}
+            ${effect.badges.length ? `
+              <div class="effect-badge-row">
+                ${effect.badges.map((badge) => `<span class="effect-badge effect-badge-${badge.tone}">${badge.text}</span>`).join('')}
+              </div>
+            ` : ''}
+            <div class="effect-copy">
+              ${effect.descriptionSegments.map((segment) => `<span class="effect-copy-segment ${segment.isNumber ? 'effect-copy-number' : ''}">${segment.text}</span>`).join('')}
+            </div>
+          `;
+          
+          effectCard.addEventListener('click', (event) => {
+            if (!event.target.tagName === 'SELECT') {
+              this.onToggleTargetEffect(event);
+            }
+          });
+          
+          rowElement.appendChild(effectCard);
+        });
+        
+        targetEffectGrid.appendChild(rowElement);
+      });
+    }
+  },
+  
+  // 更新时间线
+  updateTimeline() {
+    // 更新攻击方时间线
+    const attackerTimelineBoard = document.getElementById('attacker-timeline-board');
+    if (attackerTimelineBoard) {
+      if (this.data.attackerTimelineTracks && this.data.attackerTimelineTracks.length) {
+        attackerTimelineBoard.innerHTML = `
+          <div class="timeline-axis">
+            <span>${this.data.timelineRangeStartLabel}</span>
+            <span>${this.data.timelineRangeEndLabel}</span>
+          </div>
+          ${this.data.attackerTimelineTracks.map((item) => `
+            <div class="timeline-row">
+              <div class="timeline-row-head">
+                <span class="effect-title">${item.label}</span>
+                <span class="effect-pill effect-pill-${item.tone}">${item.category}</span>
+              </div>
+              ${item.hasVariants ? `
+                <select class="timeline-picker" data-side="attacker" data-effect-key="${item.effectKey}" onchange="pageInstance.onEffectVariantChange(event)">
+                  ${item.variantOptions.map((option, index) => `<option value="${index}" ${item.variantIndex === index ? 'selected' : ''}>${option.label}</option>`).join('')}
+                </select>
+              ` : ''}
+              ${item.hasDurationOptions ? `
+                <select class="timeline-picker" data-side="attacker" data-effect-key="${item.effectKey}" onchange="pageInstance.onEffectDurationChange(event)">
+                  ${item.durationOptions.map((option, index) => `<option value="${index}" ${item.durationIndex === index ? 'selected' : ''}>${option.label || '选择激活灯臂'}</option>`).join('')}
+                </select>
+              ` : ''}
+              ${!item.hasVariants && !item.hasDurationOptions ? `<span class="effect-meta">${item.description}</span>` : ''}
+              <span class="effect-meta">${item.variantLabel}${item.variantLabel && item.durationLabel ? ' · ' : ''}${item.durationLabel}${(item.variantLabel || item.durationLabel) ? ' · ' : ''}持续 ${item.durationSec}s，可直接拖动调整开始时间</span>
+              <div id="timeline-track-attacker-${item.effectKey}" class="timeline-track-bar timeline-track-bar-large">
+                <div class="timeline-sim-window" style="left: ${this.data.simulationStartPercent}%; width: ${this.data.simulationSpanPercent}%;"></div>
+                <div class="timeline-track-fill timeline-track-fill-draggable ${this.data.activeTimelineTrackId === item.effectKey && this.data.activeTimelineTrackSide === 'attacker' ? 'timeline-track-active' : ''}" style="left: ${item.startPercent}%; width: ${item.spanPercent}%;" data-side="attacker" data-effect-key="${item.effectKey}">
+                  <div class="timeline-track-segments">
+                    ${item.hasPreSimSegment ? `<div class="timeline-track-segment timeline-track-segment-pre" style="width: ${item.preSimPercent}%;"></div>` : ''}
+                    <div class="timeline-track-segment timeline-track-segment-main" style="left: ${item.simOffsetPercent}%; width: ${item.simPercent}%;"></div>
+                    ${item.hasPostSimSegment ? `<div class="timeline-track-segment timeline-track-segment-post" style="left: ${item.postSimOffsetPercent}%; width: ${item.postSimPercent}%;"></div>` : ''}
+                  </div>
+                  <div class="timeline-track-handle"></div>
+                </div>
+              </div>
+              <div class="range-labels">
+                <span>开始 ${item.startSec}s</span>
+                <span>结束 ${item.endSec}s</span>
+              </div>
+            </div>
+          `).join('')}
+        `;
+        
+        // 添加拖拽事件
+        this.data.attackerTimelineTracks.forEach((item) => {
+          const trackFill = document.querySelector(`#timeline-track-attacker-${item.effectKey} .timeline-track-fill`);
+          if (trackFill) {
+            trackFill.addEventListener('mousedown', this.onTimelineDragStart.bind(this));
+            trackFill.addEventListener('mousemove', this.onTimelineDragMove.bind(this));
+            trackFill.addEventListener('mouseup', this.onTimelineDragEnd.bind(this));
+            trackFill.addEventListener('mouseleave', this.onTimelineDragEnd.bind(this));
+          }
+        });
+      } else {
+        attackerTimelineBoard.innerHTML = `
+          <div class="summary-box compact-empty">
+            <span class="summary-line">攻击方当前还没有可用状态 </span>
+          </div>
+        `;
+      }
+    }
+    
+    // 更新受击方时间线
+    const targetTimelineBoard = document.getElementById('target-timeline-board');
+    if (targetTimelineBoard) {
+      if (this.data.targetTimelineTracks && this.data.targetTimelineTracks.length) {
+        targetTimelineBoard.innerHTML = `
+          <div class="timeline-axis">
+            <span>${this.data.timelineRangeStartLabel}</span>
+            <span>${this.data.timelineRangeEndLabel}</span>
+          </div>
+          ${this.data.targetTimelineTracks.map((item) => `
+            <div class="timeline-row">
+              <div class="timeline-row-head">
+                <span class="effect-title">${item.label}</span>
+                <span class="effect-pill effect-pill-${item.tone}">${item.category}</span>
+              </div>
+              ${item.hasVariants ? `
+                <select class="timeline-picker" data-side="target" data-effect-key="${item.effectKey}" onchange="pageInstance.onEffectVariantChange(event)">
+                  ${item.variantOptions.map((option, index) => `<option value="${index}" ${item.variantIndex === index ? 'selected' : ''}>${option.label}</option>`).join('')}
+                </select>
+              ` : ''}
+              ${item.hasDurationOptions ? `
+                <select class="timeline-picker" data-side="target" data-effect-key="${item.effectKey}" onchange="pageInstance.onEffectDurationChange(event)">
+                  ${item.durationOptions.map((option, index) => `<option value="${index}" ${item.durationIndex === index ? 'selected' : ''}>${option.label || '选择激活灯臂'}</option>`).join('')}
+                </select>
+              ` : ''}
+              ${!item.hasVariants && !item.hasDurationOptions ? `<span class="effect-meta">${item.description}</span>` : ''}
+              <span class="effect-meta">${item.variantLabel}${item.variantLabel && item.durationLabel ? ' · ' : ''}${item.durationLabel}${(item.variantLabel || item.durationLabel) ? ' · ' : ''}持续 ${item.durationSec}s，可直接拖动调整开始时间</span>
+              <div id="timeline-track-target-${item.effectKey}" class="timeline-track-bar timeline-track-bar-large">
+                <div class="timeline-sim-window" style="left: ${this.data.simulationStartPercent}%; width: ${this.data.simulationSpanPercent}%;"></div>
+                <div class="timeline-track-fill timeline-track-fill-draggable ${this.data.activeTimelineTrackId === item.effectKey && this.data.activeTimelineTrackSide === 'target' ? 'timeline-track-active' : ''}" style="left: ${item.startPercent}%; width: ${item.spanPercent}%;" data-side="target" data-effect-key="${item.effectKey}">
+                  <div class="timeline-track-segments">
+                    ${item.hasPreSimSegment ? `<div class="timeline-track-segment target-track-segment-pre" style="width: ${item.preSimPercent}%;"></div>` : ''}
+                    <div class="timeline-track-segment target-track-segment-main" style="left: ${item.simOffsetPercent}%; width: ${item.simPercent}%;"></div>
+                    ${item.hasPostSimSegment ? `<div class="timeline-track-segment target-track-segment-post" style="left: ${item.postSimOffsetPercent}%; width: ${item.postSimPercent}%;"></div>` : ''}
+                  </div>
+                  <div class="timeline-track-handle"></div>
+                </div>
+              </div>
+              <div class="range-labels">
+                <span>开始 ${item.startSec}s</span>
+                <span>结束 ${item.endSec}s</span>
+              </div>
+            </div>
+          `).join('')}
+        `;
+        
+        // 添加拖拽事件
+        this.data.targetTimelineTracks.forEach((item) => {
+          const trackFill = document.querySelector(`#timeline-track-target-${item.effectKey} .timeline-track-fill`);
+          if (trackFill) {
+            trackFill.addEventListener('mousedown', this.onTimelineDragStart.bind(this));
+            trackFill.addEventListener('mousemove', this.onTimelineDragMove.bind(this));
+            trackFill.addEventListener('mouseup', this.onTimelineDragEnd.bind(this));
+            trackFill.addEventListener('mouseleave', this.onTimelineDragEnd.bind(this));
+          }
+        });
+      } else {
+        targetTimelineBoard.innerHTML = `
+          <div class="summary-box compact-empty">
+            <span class="summary-line">受击方当前还没有可用状态 </span>
+          </div>
+        `;
+      }
+    }
+  },
+  
+  // 更新数据分析
+  updateAnalysis() {
+    const metricGrid = document.getElementById('metric-grid');
+    if (!metricGrid) return;
+    
+    // 清空现有内容
+    metricGrid.innerHTML = '';
+    
+    // 生成数据分析
+    if (this.data.analysis && this.data.analysis.metrics) {
+      this.data.analysis.metrics.forEach((metric, index) => {
+        if (index % 2 === 0) {
+          const rowElement = document.createElement('div');
+          rowElement.className = 'metric-row';
+          
+          for (let i = index; i < Math.min(index + 2, this.data.analysis.metrics.length); i++) {
+            const metricItem = this.data.analysis.metrics[i];
+            const metricCard = document.createElement('div');
+            metricCard.className = 'metric-card';
+            
+            metricCard.innerHTML = `
+              <span class="metric-label">${metricItem.label}</span>
+              <span class="metric-value">${metricItem.value}</span>
+            `;
+            
+            rowElement.appendChild(metricCard);
+          }
+          
+          metricGrid.appendChild(rowElement);
+        }
+      });
+    }
+    
+    // 更新摘要
+    const summaryBox = document.getElementById('summary-box');
+    if (summaryBox) {
+      if (this.data.analysis && this.data.analysis.summary) {
+        summaryBox.innerHTML = `
+          <div class="summary-highlight-grid">
+            ${this.data.analysis.summary.highlights.map((highlight) => `
+              <div class="summary-highlight-card summary-highlight-${highlight.tone}">
+                <span class="summary-highlight-label">${highlight.label}</span>
+                <span class="summary-highlight-value">${highlight.value}</span>
+              </div>
+            `).join('')}
+          </div>
+          ${this.data.analysis.summary.lines.map((line) => `<span class="summary-line">${line.text}</span>`).join('')}
+        `;
+      } else {
+        summaryBox.innerHTML = `
+          <div class="summary-box compact-empty">
+            <span class="summary-line">请选择攻击方和受击方配置 </span>
+          </div>
+        `;
+      }
+    }
+    
+    // 更新评价
+    const tauntBox = document.getElementById('taunt-box');
+    if (tauntBox) {
+      if (this.data.analysis && this.data.analysis.taunt) {
+        tauntBox.innerHTML = `
+          <span class="taunt-title">分析评价</span>
+          ${this.data.analysis.taunt.lines.map((line) => `<span class="taunt-line">${line.text}</span>`).join('')}
+        `;
+      } else {
+        tauntBox.innerHTML = '';
+      }
+    }
+  }
+};
+
+// 页面加载完成后初始化
+window.addEventListener('DOMContentLoaded', function() {
+  pageInstance.onLoad();
+  setTimeout(() => {
+    pageInstance.onReady();
+  }, 100);
 });
+
+// 页面滚动事件
+window.addEventListener('scroll', function(event) {
+  if (pageInstance.onPageScroll) {
+    pageInstance.onPageScroll({ scrollTop: window.scrollY });
+  }
+});
+
+// 主题切换按钮点击事件
+const themeSwitch = document.getElementById('theme-switch');
+if (themeSwitch) {
+  themeSwitch.addEventListener('click', function() {
+    if (pageInstance.onToggleTheme) {
+      pageInstance.onToggleTheme();
+    }
+  });
+}
+
+// 肖像舞台拖拽事件
+const portraitStageShell = document.getElementById('portrait-stage-shell');
+if (portraitStageShell) {
+  portraitStageShell.addEventListener('mousedown', pageInstance.onPortraitRevealStart.bind(pageInstance));
+  document.addEventListener('mousemove', pageInstance.onPortraitRevealMove.bind(pageInstance));
+  document.addEventListener('mouseup', pageInstance.onPortraitRevealEnd.bind(pageInstance));
+}
+
+// Logo点击事件
+const heroLogo = document.getElementById('hero-logo');
+if (heroLogo) {
+  heroLogo.addEventListener('click', pageInstance.onLogoTap.bind(pageInstance));
+}
+
+// 重置图表视图按钮点击事件
+const resetChartViewport = document.getElementById('reset-chart-viewport');
+if (resetChartViewport) {
+  resetChartViewport.addEventListener('click', function() {
+    if (pageInstance.onResetChartViewport) {
+      pageInstance.onResetChartViewport();
+    }
+  });
+}
+
+// 表单事件监听
+const attackerRoleSelect = document.getElementById('attacker-role');
+if (attackerRoleSelect) {
+  attackerRoleSelect.addEventListener('change', pageInstance.onAttackerRoleChange.bind(pageInstance));
+}
+
+const attackerProfileSelect = document.getElementById('attacker-profile');
+if (attackerProfileSelect) {
+  attackerProfileSelect.addEventListener('change', pageInstance.onAttackerProfileChange.bind(pageInstance));
+}
+
+const attackerPostureSelect = document.getElementById('attacker-posture');
+if (attackerPostureSelect) {
+  attackerPostureSelect.addEventListener('change', pageInstance.onAttackerPostureChange.bind(pageInstance));
+}
+
+const targetRoleSelect = document.getElementById('target-role');
+if (targetRoleSelect) {
+  targetRoleSelect.addEventListener('change', pageInstance.onTargetRoleChange.bind(pageInstance));
+}
+
+const targetProfileSelect = document.getElementById('target-profile');
+if (targetProfileSelect) {
+  targetProfileSelect.addEventListener('change', pageInstance.onTargetProfileChange.bind(pageInstance));
+}
+
+const targetPostureSelect = document.getElementById('target-posture');
+if (targetPostureSelect) {
+  targetPostureSelect.addEventListener('change', pageInstance.onTargetPostureChange.bind(pageInstance));
+}
+
+const targetPartSelect = document.getElementById('target-part');
+if (targetPartSelect) {
+  targetPartSelect.addEventListener('change', pageInstance.onTargetPartChange.bind(pageInstance));
+}
+
+const outpostWindowSlider = document.getElementById('outpost-window-slider');
+if (outpostWindowSlider) {
+  outpostWindowSlider.addEventListener('input', pageInstance.onOutpostWindowChange.bind(pageInstance));
+}
+
+const outpostWindowInput = document.getElementById('outpost-window-input');
+if (outpostWindowInput) {
+  outpostWindowInput.addEventListener('change', pageInstance.onOutpostWindowInputCommit.bind(pageInstance));
+}
+
+const durationSlider = document.getElementById('duration-slider');
+if (durationSlider) {
+  durationSlider.addEventListener('input', pageInstance.onDurationChange.bind(pageInstance));
+}
+
+const durationInput = document.getElementById('duration-input');
+if (durationInput) {
+  durationInput.addEventListener('change', pageInstance.onDurationInputCommit.bind(pageInstance));
+}
+
+const fireRateSlider = document.getElementById('fire-rate-slider');
+if (fireRateSlider) {
+  fireRateSlider.addEventListener('input', pageInstance.onFireRateChange.bind(pageInstance));
+}
+
+const fireRateInput = document.getElementById('fire-rate-input');
+if (fireRateInput) {
+  fireRateInput.addEventListener('change', pageInstance.onFireRateInputCommit.bind(pageInstance));
+}
+
+const hitRateSlider = document.getElementById('hit-rate-slider');
+if (hitRateSlider) {
+  hitRateSlider.addEventListener('input', pageInstance.onHitRateChange.bind(pageInstance));
+}
+
+const hitRateInput = document.getElementById('hit-rate-input');
+if (hitRateInput) {
+  hitRateInput.addEventListener('change', pageInstance.onHitRateInputCommit.bind(pageInstance));
+}
+
+const heatSlider = document.getElementById('heat-slider');
+if (heatSlider) {
+  heatSlider.addEventListener('input', pageInstance.onHeatChange.bind(pageInstance));
+}
+
+const heatInput = document.getElementById('heat-input');
+if (heatInput) {
+  heatInput.addEventListener('change', pageInstance.onHeatInputCommit.bind(pageInstance));
+}
+
+const targetHealthSlider = document.getElementById('target-health-slider');
+if (targetHealthSlider) {
+  targetHealthSlider.addEventListener('input', pageInstance.onTargetHealthChange.bind(pageInstance));
+}
+
+// 图表触摸事件
+const outputChartWrap = document.getElementById('outputChartWrap');
+if (outputChartWrap) {
+  outputChartWrap.addEventListener('touchstart', pageInstance.onChartTouchStart.bind(pageInstance));
+  outputChartWrap.addEventListener('touchmove', pageInstance.onChartTouchMove.bind(pageInstance));
+  outputChartWrap.addEventListener('touchend', pageInstance.onChartTouchEnd.bind(pageInstance));
+}
+
+const thermalChartWrap = document.getElementById('thermalChartWrap');
+if (thermalChartWrap) {
+  thermalChartWrap.addEventListener('touchstart', pageInstance.onChartTouchStart.bind(pageInstance));
+  thermalChartWrap.addEventListener('touchmove', pageInstance.onChartTouchMove.bind(pageInstance));
+  thermalChartWrap.addEventListener('touchend', pageInstance.onChartTouchEnd.bind(pageInstance));
+}
+
+const targetChartWrap = document.getElementById('targetChartWrap');
+if (targetChartWrap) {
+  targetChartWrap.addEventListener('touchstart', pageInstance.onChartTouchStart.bind(pageInstance));
+  targetChartWrap.addEventListener('touchmove', pageInstance.onChartTouchMove.bind(pageInstance));
+  targetChartWrap.addEventListener('touchend', pageInstance.onChartTouchEnd.bind(pageInstance));
+}
