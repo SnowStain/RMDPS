@@ -1,0 +1,39 @@
+# 微信小程序项目忽略文件
+node_modules/
+dist/
+*.log
+.DS_Store
+.project
+.settings
+.classpath
+*.swp
+*.swo
+*~
+
+# 编辑器文件
+.vscode/
+.idea/
+
+# 系统文件
+Thumbs.db
+
+# 构建输出
+build/
+out/
+
+# 临时文件
+*.tmp
+*.temp
+
+# 测试文件
+coverage/
+.nyc_output/
+
+# 环境变量文件
+.env
+.env.local
+.env.*.local
+
+# 微信开发者工具生成的文件
+project.private.config.json
+miniprogram_npm/
