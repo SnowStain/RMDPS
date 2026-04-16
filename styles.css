@@ -36,7 +36,7 @@ main {
   padding: 20px;
 }
 
-#dps-lab-container {
+#ARTINX-Calculate-Lab-container {
   min-height: 600px;
 }
 
@@ -54,11 +54,11 @@ footer {
   #app {
     padding: 10px;
   }
-  
+
   header h1 {
     font-size: 24px;
   }
-  
+
   main {
     padding: 15px;
   }

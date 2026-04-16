@@ -1,1 +1,43 @@
-{"files.associations": {"*.wxml": "wxml", "*.wxss": "css", "*.wxs": "javascript"}, "minapp-vscode.globalStyleFiles": ["app.wxss"], "minapp-vscode.wxmlFormatter": "prettier", "minapp-vscode.prettier": {"useTabs": false, "tabWidth": 2, "printWidth": 100, "singleQuote": true}, "[wxml]": {"editor.defaultFormatter": "qiu8310.minapp-vscode", "editor.tabSize": 2, "editor.insertSpaces": true}, "[wxss]": {"editor.defaultFormatter": "esbenp.prettier-vscode", "tabSize": 2}, "[javascript]": {"editor.defaultFormatter": "esbenp.prettier-vscode", "tabSize": 2}, "editor.formatOnSave": true, "editor.codeActionsOnSave": {"source.fixAll": "explicit"}, "emmet.includeLanguages": {"wxml": "html"}, "files.eol": "\n"}
+{
+    "files.associations": {
+        "*.wxml": "wxml",
+        "*.wxss": "css",
+        "*.wxs": "javascript"
+    },
+    "minapp-vscode.globalStyleFiles": [
+        "app.wxss"
+    ],
+    "minapp-vscode.wxmlFormatter": "prettier",
+    "minapp-vscode.prettier": {
+        "useTabs": false,
+        "tabWidth": 2,
+        "printWidth": 100,
+        "singleQuote": true
+    },
+    "[wxml]": {
+        "editor.defaultFormatter": "qiu8310.minapp-vscode",
+        "editor.tabSize": 2,
+        "editor.insertSpaces": true
+    },
+    "[wxss]": {
+        "editor.defaultFormatter": "esbenp.prettier-vscode",
+        "tabSize": 2
+    },
+    "[javascript]": {
+        "editor.defaultFormatter": "esbenp.prettier-vscode",
+        "tabSize": 2
+    },
+    "editor.formatOnSave": true,
+    "editor.codeActionsOnSave": {
+        "source.fixAll": "explicit"
+    },
+    "emmet.includeLanguages": {
+        "wxml": "html"
+    },
+    "files.eol": "\n",
+    "cSpell.words": [
+        "ARTINX",
+        "DEBUFFS"
+    ],
+    "liveServer.settings.port": 5501
+}

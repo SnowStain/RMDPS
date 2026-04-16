@@ -20,7 +20,7 @@ const MIME_TYPES = {
 };
 
 const server = http.createServer((req, res) => {
-  let filePath = path.join(ROOT_DIR, req.url === '/' ? 'pages/dps-lab/dps-lab.html' : req.url);
+  let filePath = path.join(ROOT_DIR, req.url === '/' ? 'pages/ARTINX-Calculate-Lab/ARTINX-Calculate-Lab.html' : req.url);
   
   const ext = path.extname(filePath).toLowerCase();
   const contentType = MIME_TYPES[ext] || 'application/octet-stream';

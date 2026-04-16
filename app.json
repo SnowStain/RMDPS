@@ -1,8 +1,8 @@
 {
   "darkmode": true,
   "pages": [
-    "pages/dps-lab/dps-lab",
-    "pages/dps-lab/webview/webview",
+    "pages/ARTINX-Calculate-Lab/ARTINX-Calculate-Lab",
+    "pages/ARTINX-Calculate-Lab/webview/webview",
     "pages/home/home",
     "pages/button/button",
     "pages/button/skyline/button",
@@ -96,47 +96,79 @@
   "subpackages": [
     {
       "root": "pages/side-bar/",
-      "pages": ["side-bar", "base/index", "switch/index", "custom/index", "with-icon/index"]
+      "pages": [
+        "side-bar",
+        "base/index",
+        "switch/index",
+        "custom/index",
+        "with-icon/index"
+      ]
     },
     {
       "root": "pages/action-sheet/",
-      "pages": ["action-sheet"]
+      "pages": [
+        "action-sheet"
+      ]
     },
     {
       "root": "pages/avatar/",
-      "pages": ["avatar", "skyline/avatar"]
+      "pages": [
+        "avatar",
+        "skyline/avatar"
+      ]
     },
     {
       "root": "pages/calendar/",
-      "pages": ["calendar"]
+      "pages": [
+        "calendar"
+      ]
     },
     {
       "root": "pages/dialog/",
-      "pages": ["dialog", "skyline/dialog"]
+      "pages": [
+        "dialog",
+        "skyline/dialog"
+      ]
     },
     {
       "root": "pages/picker/",
-      "pages": ["picker", "skyline/picker"]
+      "pages": [
+        "picker",
+        "skyline/picker"
+      ]
     },
     {
       "root": "pages/rate/",
-      "pages": ["rate"]
+      "pages": [
+        "rate"
+      ]
     },
     {
       "root": "pages/swiper/",
-      "pages": ["swiper", "skyline/swiper"]
+      "pages": [
+        "swiper",
+        "skyline/swiper"
+      ]
     },
     {
       "root": "pages/swipe-cell/",
-      "pages": ["swipe-cell"]
+      "pages": [
+        "swipe-cell"
+      ]
     },
     {
       "root": "pages/tree-select/",
-      "pages": ["tree-select"]
+      "pages": [
+        "tree-select"
+      ]
     },
     {
       "root": "pages/indexes/",
-      "pages": ["indexes", "base/index", "custom/index"]
+      "pages": [
+        "indexes",
+        "base/index",
+        "custom/index"
+      ]
     }
   ],
   "themeLocation": "theme.json",
