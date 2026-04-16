@@ -437,6 +437,10 @@ text {
     -webkit-backdrop-filter: blur(var(--blur-card));
 }
 
+.hero-card {
+    border-color: transparent;
+}
+
 .hero-card,
 .panel-card,
 .control-panel,
@@ -1003,14 +1007,14 @@ text {
 
 .hero-title {
     margin-top: 0;
-    font-size: clamp(30px, 5vw, 44px);
+    font-size: clamp(34px, 5vw, 54px);
     line-height: 1.1;
 }
 
 .hero-title-right {
     display: block;
     margin-top: 0;
-    margin-bottom: 6px;
+    margin-bottom: 7px;
     font-size: clamp(34px, 4.8vw, 62px);
     line-height: 1.14;
     padding-bottom: 0.08em;
@@ -1038,7 +1042,7 @@ text {
     display: block;
     margin-top: var(--space-md);
     font-size: 14px;
-    line-height: 1.65;
+    line-height: 1.75;
     color: var(--text-soft);
 }
 
@@ -1057,7 +1061,7 @@ text {
 .hero-component-kicker {
     display: block;
     margin-top: 0;
-    margin-bottom: 4px;
+    margin-bottom: 7px;
     font-size: 13px;
     letter-spacing: 1.6px;
     color: rgba(112, 128, 168, 0.88);
@@ -1070,7 +1074,8 @@ text {
     font-weight: 800;
     letter-spacing: 0.3px;
     font-family: "Arial Black", "Trebuchet MS", "PingFang SC", sans-serif;
-    line-height: 1.04;
+    line-height: 1.12;
+    padding-bottom: 0.12em;
     white-space: normal;
     overflow: visible;
     text-overflow: clip;
@@ -1162,8 +1167,12 @@ text {
     margin-left: var(--space-xs);
     font-size: clamp(22px, 3vw, 34px);
     font-family: "Arial Black", "PingFang SC", "Microsoft YaHei", sans-serif;
+    font-weight: 900;
     font-style: italic;
     letter-spacing: 1.6px;
+    line-height: 1.16;
+    padding-right: 0.14em;
+    overflow: visible;
 }
 
 .section-label {
@@ -1172,6 +1181,9 @@ text {
     font-weight: 700;
     letter-spacing: 1.6px;
     display: inline-block;
+    line-height: 1.16;
+    padding-right: 0.08em;
+    overflow: visible;
     color: transparent;
     background: linear-gradient(120deg, #c8ff52, #86da22);
     -webkit-background-clip: text;
@@ -1936,6 +1948,17 @@ select option:checked {
     margin-top: var(--space-sm);
 }
 
+.taunt-line-warning {
+    color: #ff5c66;
+    font-weight: 800;
+    text-shadow: 0 0 8px rgba(255, 92, 102, 0.42);
+}
+
+.page-shell.theme-light .taunt-line-warning {
+    color: #d62d4c;
+    text-shadow: 0 0 6px rgba(214, 45, 76, 0.24);
+}
+
 .taunt-title {
     display: block;
     margin-bottom: var(--space-sm);
@@ -2172,8 +2195,8 @@ select option:checked {
 
 .page-shell.focus-mode .revolver-shell-wrap {
     justify-content: flex-start;
-    overflow: hidden;
-    width: min(100%, calc(var(--revolver-size) * 0.833333));
+    overflow: visible;
+    width: min(100%, var(--revolver-size));
 }
 
 .page-shell.focus-mode .revolver-shell-wrap::before {
@@ -2182,9 +2205,10 @@ select option:checked {
     left: 0;
     top: 0;
     bottom: 0;
-    width: 15%;
+    width: 20%;
     pointer-events: none;
     z-index: 5;
+    display: none;
 }
 
 .page-shell.theme-dark.focus-mode .revolver-shell-wrap::before {
@@ -2196,7 +2220,7 @@ select option:checked {
 }
 
 .page-shell.focus-mode .revolver-shell {
-    margin-left: calc(var(--revolver-size) * -0.166667);
+    margin-left: 0;
 }
 
 .page-shell.focus-mode .revolver-center {
@@ -2236,7 +2260,13 @@ select option:checked {
     margin-top: var(--space-sm);
     display: block;
     font-size: 12px;
-    font-weight: 800;
+    font-weight: 900;
+}
+
+.panel-title-inline,
+.section-label,
+.chart-subtitle {
+    font-family: "PingFang SC", "Microsoft YaHei", "Arial Black", sans-serif;
 }
 
 .chart-chip {
@@ -2418,7 +2448,7 @@ select option:checked {
     }
 
     .hero-component-name {
-        font-size: clamp(18px, 5vw, 28px);
+        font-size: clamp(30px, 6vw, 30px);
         max-width: 72vw;
     }
 
@@ -2450,12 +2480,12 @@ select option:checked {
     }
 
     .page-shell.focus-mode .revolver-shell {
-        margin-left: calc(var(--revolver-size) * -0.166667);
+        margin-left: 0;
     }
 
     .page-shell.focus-mode .revolver-shell-wrap {
-        width: min(100%, calc(var(--revolver-size) * 0.833333));
-        overflow: hidden;
+        width: min(100%, var(--revolver-size));
+        overflow: visible;
     }
 
     .page-shell.focus-mode .revolver-module-panel {

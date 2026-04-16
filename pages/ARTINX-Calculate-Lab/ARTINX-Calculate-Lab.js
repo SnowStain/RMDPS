@@ -462,6 +462,7 @@
 
   function buildBattleTaunt(analysis, form) {
     var cards = analysis && analysis.cards;
+    var coreTaunt = analysis && analysis.taunt ? analysis.taunt : null;
     var hitRate = toNumber(form && form.hitRatePercent, 100);
     var avgDps = getCardValue(cards, '平均 DPS');
     var peakDps = getCardValue(cards, '峰值 DPS');
@@ -510,9 +511,23 @@
       }
     }
 
+    var finalTitle = '战场嘴替';
+    var finalLines = [hitLine, ttkLine, dpsLine];
+
+    var warningLine = coreTaunt && coreTaunt.warningLine ? String(coreTaunt.warningLine) : '';
+    var heatLockCount = getCardValue(cards, '热量锁定次数');
+    if (heatLockCount != null && heatLockCount > 0) {
+      var forcedWarningLine = '这么高发弹频率现实里大概率是会锁枪管的对吧，我模拟一下很合理吧（doge）';
+      warningLine = warningLine || forcedWarningLine;
+      if (!finalLines.includes(warningLine)) {
+        finalLines.push(warningLine);
+      }
+    }
+
     return {
-      title: '战场嘴替',
-      lines: [hitLine, ttkLine, dpsLine],
+      title: finalTitle,
+      lines: finalLines,
+      warningLine: warningLine,
     };
   }
 
@@ -994,9 +1009,14 @@
     var tauntData = buildBattleTaunt(analysis, form);
     var taunt = '';
     if (tauntData && ensureArray(tauntData.lines).length) {
+      var warningLine = tauntData.warningLine ? String(tauntData.warningLine) : '';
       taunt = '<view class="summary-box taunt-box">'
         + '<text class="taunt-title">' + escapeHtml(tauntData.title || '战场嘴替') + '</text>'
-        + ensureArray(tauntData.lines).map(function (line) { return '<text class="taunt-line">' + escapeHtml(line) + '</text>'; }).join('')
+        + ensureArray(tauntData.lines).map(function (line) {
+          var lineText = String(line == null ? '' : line);
+          var lineClass = warningLine && lineText === warningLine ? 'taunt-line taunt-line-warning' : 'taunt-line';
+          return '<text class="' + lineClass + '">' + escapeHtml(lineText) + '</text>';
+        }).join('')
         + '</view>';
     }
 
@@ -1154,7 +1174,7 @@
       + '</view>'
       + '</view>'
       + '<view class="lab-bottom-note"><text class="lab-footer-copy">由 南科大ARTINX战队-归尘 开发，仍在优化阶段 如有不合理之处敬请谅解</text>'
-      + '<text class="lab-footer-version">版本号 v2.1.1</text></view>'
+      + '<text class="lab-footer-version">版本号 v2.2.2</text></view>'
       + '</view>';
 
     syncRangeTrackFill(contentRoot);

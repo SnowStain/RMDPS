@@ -209,6 +209,61 @@ function drawSeriesHighlightSegments(ctx, renderState, series, visibleWindow, ra
   }
 }
 
+function drawNoFireIntervals(ctx, renderState, frame, visibleWindow) {
+  const overlayMap = renderState.overlayMasks;
+  const mask = overlayMap && overlayMap.noFire;
+  if (!Array.isArray(mask) || !mask.length) {
+    return;
+  }
+
+  const startIndex = Math.max(0, visibleWindow.startIndex);
+  const endIndex = Math.min(visibleWindow.endIndex, mask.length - 1);
+  if (endIndex < startIndex) {
+    return;
+  }
+
+  const color = renderState.noFireColor || 'rgba(128, 128, 128, 0.2)';
+  let segmentStart = -1;
+
+  const timeToX = (timeValue) => {
+    const clampedTime = clamp(timeValue, visibleWindow.startTime, visibleWindow.endTime);
+    return frame.left + (frame.right - frame.left) * ((clampedTime - visibleWindow.startTime) / visibleWindow.span);
+  };
+
+  const paintSegment = (startIdx, endIdxInclusive) => {
+    const startTime = getTimeValueAt(renderState.timeLabels, startIdx);
+    const rightRefIndex = Math.min(mask.length - 1, endIdxInclusive + 1);
+    const endTime = getTimeValueAt(renderState.timeLabels, rightRefIndex);
+    const startX = timeToX(startTime);
+    let endX = timeToX(Number.isFinite(endTime) ? endTime : startTime);
+    if (!Number.isFinite(startX) || !Number.isFinite(endX)) {
+      return;
+    }
+    if (endX < startX + 1) {
+      endX = startX + 1;
+    }
+    ctx.save();
+    ctx.fillStyle = color;
+    ctx.fillRect(startX, frame.top, endX - startX, frame.bottom - frame.top);
+    ctx.restore();
+  };
+
+  for (let index = startIndex; index <= endIndex; index += 1) {
+    const active = Number(mask[index]) > 0;
+    if (active && segmentStart < 0) {
+      segmentStart = index;
+    }
+    const segmentEnds = segmentStart >= 0 && (!active || index === endIndex);
+    if (segmentEnds) {
+      const segmentEndIndex = active && index === endIndex ? index : index - 1;
+      if (segmentEndIndex >= segmentStart) {
+        paintSegment(segmentStart, segmentEndIndex);
+      }
+      segmentStart = -1;
+    }
+  }
+}
+
 function drawStartValueLabels(ctx, renderState, frame, visibleWindow, range) {
   const labels = [];
   const x = frame.left;
@@ -409,6 +464,8 @@ function renderChartCanvas(canvas) {
   const visibleWindow = getVisibleWindow(renderState.timeLabels, renderState.viewport);
   const range = findMinMax(renderState.seriesData);
 
+  drawNoFireIntervals(ctx, renderState, frame, visibleWindow);
+
   renderState.seriesData.forEach((series) => {
     ctx.save();
     ctx.globalAlpha = 0.16;
@@ -543,6 +600,8 @@ function renderChart(canvasId, chart, width, height, theme, viewport) {
     seriesData,
     highlightMasks: chart.highlightMasks || {},
     highlightColor: chart.highlightColor || '#ff2b2b',
+    overlayMasks: chart.overlayMasks || {},
+    noFireColor: chart.noFireColor || 'rgba(128, 128, 128, 0.2)',
     hoverIndex: null,
     hoverY: null,
   };
