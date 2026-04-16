@@ -17,7 +17,6 @@
     hideUiForBackdrop: false,
     viewport: {
       output: { start: 0, end: 1 },
-      thermal: { start: 0, end: 1 },
       target: { start: 0, end: 1 },
     },
     timelineDrag: null,
@@ -523,7 +522,7 @@
         return acc.concat(ensureArray(row));
       }, [])
       .map(function (item) {
-        return '<view class="metric-card"><text class="metric-label">' + escapeHtml(item.label) + '</text><text class="metric-value">' + escapeHtml(item.value) + '</text></view>';
+        return '<view class="metric-card metric-card-' + escapeHtml(item.tone || 'neutral') + '"><text class="metric-label">' + escapeHtml(item.label) + '</text><text class="metric-value">' + escapeHtml(item.value) + '</text></view>';
       })
       .join('');
   }
@@ -1026,16 +1025,14 @@
       + '<view class="hero-brand">'
       + '<img id="heroLogo" class="hero-logo" src="' + escapeHtml(logoSrc) + '" alt="ARTINX" />'
       + '<view class="hero-texts">'
-      + '<text class="hero-eyebrow">RoboMaster</text>'
-      + '<view class="hero-title-row">'
-      + '<text class="hero-title">ARTINX Laboratory</text>'
-      + '<view class="hero-component-indicator">'
-      + '<text class="hero-component-kicker">CURRENT MODULE</text>'
-      + '<text id="currentComponentName" class="hero-component-name">' + escapeHtml(currentComponentDisplayName) + '</text>'
-      + '</view>'
-      + '</view>'
       + '<text class="hero-copy"></text>'
       + '</view>'
+      + '</view>'
+      + '<view class="hero-component-indicator">'
+      + '<text class="hero-eyebrow hero-eyebrow-right">RoboMaster</text>'
+      + '<text class="hero-title hero-title-right">ARTINX Laboratory</text>'
+      + '<text class="hero-component-kicker">CURRENT MODULE</text>'
+      + '<text id="currentComponentName" class="hero-component-name">' + escapeHtml(currentComponentDisplayName) + '</text>'
       + '</view>'
       + '</view>'
       + '</view>'
@@ -1148,12 +1145,6 @@
       + '</view>'
 
       + '<view class="chart-card">'
-      + '<view class="chart-head"><view><text class="chart-title">' + escapeHtml(analysis.charts.thermal.title) + '</text><text class="chart-subtitle">' + escapeHtml(analysis.charts.thermal.subtitle) + '</text></view><view class="chart-chip">' + escapeHtml(analysis.charts.thermal.unitHint) + '</view></view>'
-      + '<view class="legend-row">' + renderLegend(analysis.charts.thermal.series) + '</view>'
-      + '<view id="thermalChartWrap" class="chart-touch-layer" data-chart-key="thermal"><canvas id="thermalChart" class="chart-canvas"></canvas></view>'
-      + '</view>'
-
-      + '<view class="chart-card">'
       + '<view class="chart-head"><view><text class="chart-title">' + escapeHtml(analysis.charts.target.title) + '</text><text class="chart-subtitle">' + escapeHtml(analysis.charts.target.subtitle) + '</text></view><view class="chart-chip">' + escapeHtml(analysis.charts.target.unitHint) + '</view></view>'
       + '<view class="legend-row">' + renderLegend(analysis.charts.target.series) + '</view>'
       + '<view id="targetChartWrap" class="chart-touch-layer" data-chart-key="target"><canvas id="targetChart" class="chart-canvas"></canvas></view>'
@@ -1209,7 +1200,6 @@
       return;
     }
     drawSingleChart('outputChartWrap', 'outputChart', 'output', state.page.analysis.charts.output);
-    drawSingleChart('thermalChartWrap', 'thermalChart', 'thermal', state.page.analysis.charts.thermal);
     drawSingleChart('targetChartWrap', 'targetChart', 'target', state.page.analysis.charts.target);
   }
 
@@ -1564,7 +1554,6 @@
 
     if (action === 'reset-viewport') {
       state.viewport.output = { start: 0, end: 1 };
-      state.viewport.thermal = { start: 0, end: 1 };
       state.viewport.target = { start: 0, end: 1 };
       renderCharts();
       return;

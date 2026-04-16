@@ -1657,6 +1657,7 @@ function analyzeDamageLab(form = {}) {
   const totalDamageCurve = new Array(totalSteps).fill(0);
   const receivedDamageCurve = new Array(totalSteps).fill(0);
   const shotStepDamageCurve = new Array(totalSteps).fill(0);
+  const singleShotExpectedCurve = new Array(totalSteps).fill(0);
   const shotStepReceivedCurve = new Array(totalSteps).fill(0);
   const critStepCurve = new Array(totalSteps).fill(0);
   const critReceivedStepCurve = new Array(totalSteps).fill(0);
@@ -1707,6 +1708,8 @@ function analyzeDamageLab(form = {}) {
     const effectiveCoolingRate = attacker.resolved.coolingRate * modifiers.coolingMultiplier;
     const effectiveHitProbability = clamp(targetBaseHitRatePercent / 100 * modifiers.hitProbabilityMult, 0, 1);
     const singleShotDamageBase = baseDamage * modifiers.damageDealtMult * modifiers.damageTakenMult;
+    const singleShotExpectedDamage = singleShotDamageBase * (structureCritEnabled ? (1 + 0.5 * structureCritChance) : 1);
+    singleShotExpectedCurve[index] = singleShotExpectedDamage;
     peakCoolingRate = Math.max(peakCoolingRate, effectiveCoolingRate);
     lastReceiveRatio = effectiveHitProbability;
     lastCoolingRate = effectiveCoolingRate;
@@ -1792,7 +1795,7 @@ function analyzeDamageLab(form = {}) {
   const usedTimeAxis = timeAxis.slice(0, usedCount);
   const usedTotalDamageCurve = totalDamageCurve.slice(0, usedCount);
   const usedReceivedDamageCurve = receivedDamageCurve.slice(0, usedCount);
-  const usedShotStepReceivedCurve = shotStepReceivedCurve.slice(0, usedCount);
+  const usedSingleShotExpectedCurve = singleShotExpectedCurve.slice(0, usedCount);
   const usedCritStepCurve = critStepCurve.slice(0, usedCount);
   const usedCritReceivedStepCurve = critReceivedStepCurve.slice(0, usedCount);
   const usedTargetHealthCurve = targetHealthCurve.slice(0, usedCount);
@@ -1803,12 +1806,10 @@ function analyzeDamageLab(form = {}) {
   const hitSimulationCeiling = ttkSec === null && effectiveDurationSec >= simulationMaxDurationSec - 1e-6;
 
   const dpsCurve = buildRateCurve(usedTotalDamageCurve, dt);
-  const dpmCurve = dpsCurve.map((value) => value * 60);
   const stepDamageCurve = dpsCurve.map((value) => Number(value.toFixed(4)));
-  const stepDpmCurve = dpmCurve.map((value) => Number(value.toFixed(4)));
+  const stepSingleDamageCurve = usedSingleShotExpectedCurve.map((value) => Number(value.toFixed(4)));
   const stepTotalDamageCurve = usedTotalDamageCurve.map((value) => Number(value.toFixed(4)));
   const stepTotalReceivedCurve = usedReceivedDamageCurve.map((value) => Number(value.toFixed(4)));
-  const stepSingleReceivedCurve = usedShotStepReceivedCurve.map((value) => Number(value.toFixed(4)));
   const stepCritCurve = usedCritStepCurve.map((value) => Number(value.toFixed(4)));
   const stepCritReceivedCurve = usedCritReceivedStepCurve.map((value) => Number(value.toFixed(4)));
   const critDamageStepMask = stepCritCurve.map((value) => value > 1e-9 ? 1 : 0);
@@ -1827,21 +1828,17 @@ function analyzeDamageLab(form = {}) {
 
   const outputSeries = [
     { key: 'dps', label: 'DPS(按1秒发弹)', color: '#cfff2e', values: stepDamageCurve },
-    { key: 'dpm', label: '单发分钟折算', color: '#7f45f2', values: stepDpmCurve },
+    { key: 'singleDamage', label: '单发伤害', color: '#ff3ea5', values: stepSingleDamageCurve },
+    { key: 'heat', label: '热量', color: '#8b56ff', values: usedHeatCurve },
   ];
   const outputChart = downsampleSeries(usedTimeAxis, outputSeries);
-  const heatChart = downsampleSeries(usedTimeAxis, [
-    { key: 'heat', label: '热量', color: '#8b56ff', values: usedHeatCurve },
-    { key: 'shots', label: '累计发弹', color: '#c8ff36', values: usedShotsCurve },
-    { key: 'totalDamage', label: '总伤害', color: '#6ee7ff', values: stepTotalDamageCurve },
-  ]);
   const targetChart = downsampleSeries(usedTimeAxis, [
-    { key: 'singleReceivedDamage', label: '单发受击', color: '#9a69ff', values: stepSingleReceivedCurve },
     { key: 'receivedDamage', label: '累计受击', color: '#6ee7ff', values: stepTotalReceivedCurve },
+    { key: 'totalDamage', label: '总伤害', color: '#ff9b2f', values: stepTotalDamageCurve },
     { key: 'targetHealth', label: '敌方血量', color: '#d4ff3a', values: usedTargetHealthCurve },
   ], {
-    singleReceivedDamage: forceOutpostFullWindowHighlight ? outpostWindowMask : critReceivedStepMask,
     receivedDamage: forceOutpostFullWindowHighlight ? outpostWindowMask : critReceivedStepMask,
+    totalDamage: forceOutpostFullWindowHighlight ? outpostWindowMask : critDamageStepMask,
   });
 
   const attackerConfigText = [attacker.profileLabel, attacker.level ? `Lv.${attacker.level}` : '', attacker.postureLabel].filter(Boolean).join(' · ');
@@ -1851,6 +1848,7 @@ function analyzeDamageLab(form = {}) {
   const noteLines = [SAFE_MODEL_NOTE, STACKING_NOTE];
   noteLines.push(`热量控制：严格阈值发弹，若下一发将超过 ${attacker.resolved.maxHeat.toFixed(1)} 热量上限则直接抑制`);
   noteLines.push(`热量抑制统计：共抑制 ${heatBlockedShots} 发，峰值热量 ${peakHeat.toFixed(1)}`);
+  noteLines.push('单发伤害曲线按每时刻当前状态计算，展示该时刻每发弹丸应有伤害，不受随机命中波动影响');
   if (inputs.targetRole === 'outpost') { noteLines.push(buildOutpostWindowNote(inputs.targetWindowDegrees)); }
   noteLines.push(`命中建模：受击状态 ${targetMotionLabel}，命中率 ${targetBaseHitRatePercent.toFixed(1)}%，按逐发概率判定，命中后再判定暴击`);
   if (structureCritEnabled) { noteLines.push(`建筑暴击已启用：配置概率 ${inputs.structureCritChancePercent.toFixed(1)}%，实测触发 ${actualCritRatePercent.toFixed(1)}%，触发时 +50% 伤害`); }
@@ -1866,9 +1864,12 @@ function analyzeDamageLab(form = {}) {
   const summaryHighlights = [
     { label: '总出伤', value: totalDamageFinal.toFixed(2), tone: 'attack' },
     { label: '累计受击总量', value: totalReceivedFinal.toFixed(2), tone: 'vulnerability' },
-    { label: '峰值单发', value: peakSingleShotDamage.toFixed(2), tone: 'cooling' },
     { label: '热量峰值', value: peakHeat.toFixed(1), tone: 'mixed' },
-    { label: '归零结果', value: ttkSec === null ? '未归零' : `${ttkSec.toFixed(2)} 秒`, tone: ttkSec === null ? 'neutral' : 'attack' },
+    {
+      label: '归零结果',
+      value: ttkSec === null ? '未归零' : `${ttkSec.toFixed(2)} 秒`,
+      tone: ttkSec === null ? 'neutral' : (ttkSec <= 8 ? 'ttk-blazing' : (ttkSec <= 18 ? 'ttk-fast' : (ttkSec <= 32 ? 'ttk-mid' : 'ttk-slow'))),
+    },
   ];
   const taunt = buildAnalysisTaunt({
     inputs,
@@ -1891,6 +1892,7 @@ function analyzeDamageLab(form = {}) {
       { label: '平均 DPS', value: avgDps.toFixed(2) },
       { label: '受击 DPS', value: avgReceivedDps.toFixed(2) },
       { label: '峰值 DPS', value: peakDps.toFixed(2) },
+      { label: '单发峰值', value: peakSingleShotDamage.toFixed(2), tone: 'neon-red' },
       { label: '累计发弹', value: String(totalShots) },
       { label: '热量抑制发弹', value: String(heatBlockedShots) },
       { label: '冷却峰值', value: `${peakCoolingRate.toFixed(2)}/s` },
@@ -1927,19 +1929,18 @@ function analyzeDamageLab(form = {}) {
     },
     charts: {
       output: {
-        title: '输出组合图',
-        subtitle: '按请求发弹频率计算：DPS / DPM',
-        unitHint: '逐发 计算',
+        title: '输出总曲线图',
+        subtitle: '按请求发弹频率计算：DPS / 单发伤害 / 热量',
+        unitHint: 'DPS / 单发伤害 / 热量',
         timeSec: outputChart.timeSec,
         series: outputChart.series,
         highlightMasks: outputChart.highlightMasks,
         highlightColor: '#ff2b2b',
       },
-      thermal: { title: '热量、发弹与总伤害', subtitle: `热量峰值 ${peakHeat.toFixed(1)} / 累计发弹 ${totalShots} / 总伤害 ${totalDamageFinal.toFixed(2)}`, unitHint: '热量 / 发弹量 / 总伤害', timeSec: heatChart.timeSec, series: heatChart.series },
       target: {
-        title: '受击与敌方血量',
-        subtitle: ttkSec === null ? '按单颗弹丸逐发 ，当前时长内未归零' : `按单颗弹丸逐发 ，${ttkSec.toFixed(2)} 秒归零`,
-        unitHint: '单发受击 / 累计受击 / 剩余血量',
+        title: '血量与伤害总曲线图',
+        subtitle: ttkSec === null ? '累计受击 / 总伤害 / 敌方血量（当前时长内未归零）' : `累计受击 / 总伤害 / 敌方血量（${ttkSec.toFixed(2)} 秒归零）`,
+        unitHint: '累计受击 / 总伤害 / 剩余血量',
         timeSec: targetChart.timeSec,
         series: targetChart.series,
         highlightMasks: targetChart.highlightMasks,
