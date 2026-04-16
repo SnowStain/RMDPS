@@ -209,9 +209,9 @@ function drawSeriesHighlightSegments(ctx, renderState, series, visibleWindow, ra
   }
 }
 
-function drawNoFireIntervals(ctx, renderState, frame, visibleWindow) {
+function drawOverlayIntervals(ctx, renderState, frame, visibleWindow, maskKey, color) {
   const overlayMap = renderState.overlayMasks;
-  const mask = overlayMap && overlayMap.noFire;
+  const mask = overlayMap && overlayMap[maskKey];
   if (!Array.isArray(mask) || !mask.length) {
     return;
   }
@@ -222,7 +222,6 @@ function drawNoFireIntervals(ctx, renderState, frame, visibleWindow) {
     return;
   }
 
-  const color = renderState.noFireColor || 'rgba(128, 128, 128, 0.2)';
   let segmentStart = -1;
 
   const timeToX = (timeValue) => {
@@ -262,6 +261,14 @@ function drawNoFireIntervals(ctx, renderState, frame, visibleWindow) {
       segmentStart = -1;
     }
   }
+}
+
+function drawNoFireIntervals(ctx, renderState, frame, visibleWindow) {
+  const noFireColor = renderState.noFireColor || 'rgba(128, 128, 128, 0.2)';
+  const heatLockColor = renderState.heatLockColor || 'rgba(255, 102, 102, 0.22)';
+  // 先画通用未开火灰色，再叠加热量锁管淡红色。
+  drawOverlayIntervals(ctx, renderState, frame, visibleWindow, 'noFire', noFireColor);
+  drawOverlayIntervals(ctx, renderState, frame, visibleWindow, 'heatLock', heatLockColor);
 }
 
 function drawStartValueLabels(ctx, renderState, frame, visibleWindow, range) {
@@ -399,11 +406,19 @@ function drawHoverLayer(ctx, canvas, renderState, frame, visibleWindow, range) {
   ctx.restore();
 
   const lines = [`${formatTimeLabel(pointTime)}`];
+  let heatValue = null;
+  let heatCapValue = null;
 
   renderState.seriesData.forEach((series) => {
     const value = Number(series.values[hoverIndex]);
     if (!Number.isFinite(value)) {
       return;
+    }
+    if (series.key === 'heat') {
+      heatValue = value;
+    }
+    if (series.key === 'heatCap') {
+      heatCapValue = value;
     }
     const normalized = (value - range.min) / (range.max - range.min || 1);
     const y = frame.bottom - normalized * (frame.bottom - frame.top);
@@ -420,6 +435,10 @@ function drawHoverLayer(ctx, canvas, renderState, frame, visibleWindow, range) {
 
     lines.push(`${series.label || series.key}: ${formatMetricLabel(value)}`);
   });
+
+  if (Number.isFinite(heatValue) && Number.isFinite(heatCapValue)) {
+    lines.push(`热量实时: ${formatMetricLabel(heatValue)} / ${formatMetricLabel(heatCapValue)}`);
+  }
 
   const tooltip = ensureTooltip(canvas);
   if (!tooltip) {
@@ -467,18 +486,31 @@ function renderChartCanvas(canvas) {
   drawNoFireIntervals(ctx, renderState, frame, visibleWindow);
 
   renderState.seriesData.forEach((series) => {
+    const dashArray = Array.isArray(series.dashArray) ? series.dashArray : null;
+    const useGlow = !series.noGlow;
+
+    if (useGlow) {
+      ctx.save();
+      ctx.globalAlpha = 0.16;
+      ctx.strokeStyle = series.color;
+      ctx.lineWidth = 5;
+      if (dashArray) {
+        ctx.setLineDash(dashArray);
+      }
+      drawSeriesPathNew(ctx, renderState.timeLabels, series, visibleWindow, range, frame);
+      ctx.stroke();
+      ctx.restore();
+    }
+
     ctx.save();
-    ctx.globalAlpha = 0.16;
     ctx.strokeStyle = series.color;
-    ctx.lineWidth = 5;
+    ctx.lineWidth = 2.4;
+    if (dashArray) {
+      ctx.setLineDash(dashArray);
+    }
     drawSeriesPathNew(ctx, renderState.timeLabels, series, visibleWindow, range, frame);
     ctx.stroke();
     ctx.restore();
-
-    ctx.strokeStyle = series.color;
-    ctx.lineWidth = 2.4;
-    drawSeriesPathNew(ctx, renderState.timeLabels, series, visibleWindow, range, frame);
-    ctx.stroke();
 
     drawSeriesHighlightSegments(ctx, renderState, series, visibleWindow, range, frame);
   });
@@ -602,6 +634,7 @@ function renderChart(canvasId, chart, width, height, theme, viewport) {
     highlightColor: chart.highlightColor || '#ff2b2b',
     overlayMasks: chart.overlayMasks || {},
     noFireColor: chart.noFireColor || 'rgba(128, 128, 128, 0.2)',
+    heatLockColor: chart.heatLockColor || 'rgba(255, 102, 102, 0.22)',
     hoverIndex: null,
     hoverY: null,
   };

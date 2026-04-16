@@ -511,13 +511,13 @@
       }
     }
 
-    var finalTitle = '战场嘴替';
+    var finalTitle = '嘴替';
     var finalLines = [hitLine, ttkLine, dpsLine];
 
-    var warningLine = coreTaunt && coreTaunt.warningLine ? String(coreTaunt.warningLine) : '';
-    var heatLockCount = getCardValue(cards, '热量锁定次数');
-    if (heatLockCount != null && heatLockCount > 0) {
-      var forcedWarningLine = '这么高发弹频率现实里大概率是会锁枪管的对吧，我模拟一下很合理吧（doge）';
+    var warningLine = coreTaunt && coreTaunt.warningLine ? String(coreTaunt.warningLine).trim() : '';
+    var heatOverlimitCount = getCardValue(cards, '超限锁管次数');
+    if (heatOverlimitCount != null && heatOverlimitCount > 0) {
+      var forcedWarningLine = '弹频那么高，给你模拟一下连发了哈哈';
       warningLine = warningLine || forcedWarningLine;
       if (!finalLines.includes(warningLine)) {
         finalLines.push(warningLine);
@@ -1156,7 +1156,7 @@
       + '</view>'
 
       + '<view class="panel-card compact panel-curves">'
-      + '<view class="panel-header align-center"><view class="panel-heading-inline"><text class="panel-kicker">CURVES</text><text class="panel-title panel-title-inline">数值曲线</text></view><view class="theme-switch mini" data-action="reset-viewport">重置视图</view></view>'
+      + '<view class="panel-header align-center"><view class="panel-heading-inline"><text class="panel-kicker">CURVES</text><text class="panel-title panel-title-inline">数值曲线</text></view><view class="theme-switch mini" data-action="refresh-sim">刷新</view></view>'
 
       + '<view class="chart-card">'
       + '<view class="chart-head"><view><text class="chart-title">' + escapeHtml(analysis.charts.output.title) + '</text><text class="chart-subtitle">' + escapeHtml(analysis.charts.output.subtitle) + '</text></view><view class="chart-chip">' + escapeHtml(analysis.charts.output.unitHint) + '</view></view>'
@@ -1174,7 +1174,7 @@
       + '</view>'
       + '</view>'
       + '<view class="lab-bottom-note"><text class="lab-footer-copy">由 南科大ARTINX战队-归尘 开发，仍在优化阶段 如有不合理之处敬请谅解</text>'
-      + '<text class="lab-footer-version">版本号 v2.2.2</text></view>'
+      + '<text class="lab-footer-version">版本号 v2.2.4</text></view>'
       + '</view>';
 
     syncRangeTrackFill(contentRoot);
@@ -1572,10 +1572,11 @@
       return;
     }
 
-    if (action === 'reset-viewport') {
+    if (action === 'refresh-sim') {
       state.viewport.output = { start: 0, end: 1 };
       state.viewport.target = { start: 0, end: 1 };
-      renderCharts();
+      state.form.randomNonce = Date.now() + Math.random();
+      recompute();
       return;
     }
 

@@ -1,4 +1,4 @@
-if (!window.SAFE_MODEL_NOTE) window.SAFE_MODEL_NOTE = '增益按时间轨道生效；热量控制采用安全控频模式，仅当剩余热量允许下一发不超上限时发射 ';
+if (!window.SAFE_MODEL_NOTE) window.SAFE_MODEL_NOTE = '增益按时间轨道生效；热量控制采用锁管模式：下一发达到上限前即锁定枪管，冷却到0后恢复发射 ';
 if (!window.STACKING_NOTE) window.STACKING_NOTE = '同类增益按最大有效值合并 ';
 if (!window.BASE_FIRE_RATE_HZ) window.BASE_FIRE_RATE_HZ = 15.0;
 if (!window.CHART_MAX_POINTS) window.CHART_MAX_POINTS = 200;
@@ -921,6 +921,7 @@ if (!window.DEFAULT_FORM) window.DEFAULT_FORM = {
   targetWindowDegrees: getDefaultOutpostWindowDegrees('sentry'),
   durationSec: AUTO_SIM_MAX_SEC,
   requestedFireRateHz: BASE_FIRE_RATE_HZ,
+  randomNonce: Date.now(),
   initialHeat: 0,
   targetHealthPercent: 100,
   enableStructureCrit: false,
@@ -1423,7 +1424,14 @@ function downsampleSeries(timeAxis, seriesCollection, highlightMasks, overlayMas
     const indices = timeAxis.map((_, index) => index);
     return {
       timeSec: timeAxis.map((item) => Number(item.toFixed(2))),
-      series: seriesCollection.map((series) => ({ key: series.key, label: series.label, color: series.color, values: series.values.map((item) => Number(item.toFixed(2))) })),
+      series: seriesCollection.map((series) => ({
+        key: series.key,
+        label: series.label,
+        color: series.color,
+        dashArray: Array.isArray(series.dashArray) ? series.dashArray.slice() : undefined,
+        noGlow: series.noGlow === true,
+        values: series.values.map((item) => Number(item.toFixed(2))),
+      })),
       highlightMasks: buildBinaryPayload(sourceMasks, indices),
       overlayMasks: buildBinaryPayload(sourceOverlays, indices),
     };
@@ -1434,7 +1442,14 @@ function downsampleSeries(timeAxis, seriesCollection, highlightMasks, overlayMas
   }
   return {
     timeSec: indices.map((index) => Number(timeAxis[index].toFixed(2))),
-    series: seriesCollection.map((series) => ({ key: series.key, label: series.label, color: series.color, values: indices.map((index) => Number(series.values[index].toFixed(2))) })),
+    series: seriesCollection.map((series) => ({
+      key: series.key,
+      label: series.label,
+      color: series.color,
+      dashArray: Array.isArray(series.dashArray) ? series.dashArray.slice() : undefined,
+      noGlow: series.noGlow === true,
+      values: indices.map((index) => Number(series.values[index].toFixed(2))),
+    })),
     highlightMasks: buildBinaryPayload(sourceMasks, indices),
     overlayMasks: buildBinaryPayload(sourceOverlays, indices),
   };
@@ -1573,6 +1588,7 @@ function normalizeForm(form = {}) {
   const draft = Object.assign({}, DEFAULT_FORM, form);
   draft.durationSec = AUTO_SIM_MAX_SEC;
   draft.requestedFireRateHz = clamp(toNumber(draft.requestedFireRateHz, DEFAULT_FORM.requestedFireRateHz), 0, 30);
+  draft.randomNonce = toNumber(draft.randomNonce, Date.now() + Math.random());
   draft.initialHeat = clamp(toNumber(draft.initialHeat, DEFAULT_FORM.initialHeat), 0, 500);
   draft.targetHealthPercent = clamp(toNumber(draft.targetHealthPercent, DEFAULT_FORM.targetHealthPercent), 0, 100);
   draft.structureCritChancePercent = clamp(toNumber(draft.structureCritChancePercent, DEFAULT_FORM.structureCritChancePercent), 0.5, 100);
@@ -1622,8 +1638,12 @@ function analyzeDamageLab(form = {}) {
   const dt = simulationMaxDurationSec <= 600 ? 0.01 : 0.02;
   const totalSteps = Math.floor(simulationMaxDurationSec / dt + 0.5) + 1;
   const shotInterval = inputs.requestedFireRateHz <= 1e-9 ? Number.POSITIVE_INFINITY : 1 / inputs.requestedFireRateHz;
-  const heatPerShot = attacker.resolved.ammoType === '42mm' ? 100 : 10;
-  const overheatEasterChance = inputs.requestedFireRateHz > 20 ? 0.05 : 0;
+  const maxHeat = attacker.resolved.maxHeat;
+  const heatPerShot = Number.isFinite(attacker.resolved.heatPerShot)
+    ? attacker.resolved.heatPerShot
+    : (attacker.resolved.ammoType === '42mm' ? 100 : 10);
+  const easterDoubleShotChance = inputs.requestedFireRateHz > 20 ? 0.01 : 0;
+  const easterNearCapThreshold = 40;
   const structureCritEnabled = inputs.enableStructureCrit && (inputs.targetRole === 'base' || inputs.targetRole === 'outpost');
   const structureCritChance = structureCritEnabled ? clamp(inputs.structureCritChancePercent / 100, 0.005, 1) : 0;
   const simulationRandom = createSeededRandom(hashStringToUint32(JSON.stringify({
@@ -1639,6 +1659,7 @@ function analyzeDamageLab(form = {}) {
     targetPart: targetPart.key,
     durationSec: simulationMaxDurationSec,
     requestedFireRateHz: inputs.requestedFireRateHz,
+    randomNonce: inputs.randomNonce,
     initialHeat: inputs.initialHeat,
     targetHealthPercent: inputs.targetHealthPercent,
     targetWindowDegrees: inputs.targetWindowDegrees,
@@ -1671,8 +1692,9 @@ function analyzeDamageLab(form = {}) {
   const shotsCurve = new Array(totalSteps).fill(0);
   const outpostWindowStepMask = new Array(totalSteps).fill(0);
   const noFireStepMask = new Array(totalSteps).fill(0);
+  const heatLockStepMask = new Array(totalSteps).fill(0);
 
-  let heat = clamp(inputs.initialHeat, 0, attacker.resolved.maxHeat);
+  let heat = clamp(inputs.initialHeat, 0, maxHeat);
   let totalDamage = 0;
   let totalReceivedDamage = 0;
   let totalShots = 0;
@@ -1687,11 +1709,14 @@ function analyzeDamageLab(form = {}) {
   let ttkSec = null;
   let adaptiveEndSec = simulationMaxDurationSec;
   let lastComputedStepIndex = totalSteps - 1;
-  let heatBlockedShots = 0;
+  let heatWaitCount = 0;
+  let heatOverlimitCount = 0;
   let accumulatedShotHeat = 0;
-  let easterOverheatShots = 0;
-  let heatLockActive = false;
+  let heatLockUntilZero = false;
+  let heatLockByOverlimit = false;
+  let heatWaitingForSafeShot = false;
   let noFireActive = shotInterval === Number.POSITIVE_INFINITY;
+  let heatLockActive = false;
 
   for (let index = 0; index < totalSteps; index += 1) {
     const currentTime = index * dt;
@@ -1727,9 +1752,6 @@ function analyzeDamageLab(form = {}) {
       nextCoolingTickTime += 0.1;
     }
     heat = Math.max(0, heat);
-    if (heatLockActive && heat <= 1e-9) {
-      heatLockActive = false;
-    }
     const outpostWindowOpenNow = inputs.targetRole === 'outpost'
       ? isOutpostWindowOpenAtTime(currentTime, inputs.targetWindowDegrees)
       : true;
@@ -1743,34 +1765,11 @@ function analyzeDamageLab(form = {}) {
     let critReceivedStepNow = 0;
     let hadSuccessfulShot = false;
     let hadBlockedAttempt = false;
-    while (nextShotTime <= currentTime + 1e-9) {
-      if (heatLockActive) {
-        hadBlockedAttempt = true;
-        break;
-      }
-
-      const canAttackOutpost = inputs.targetRole !== 'outpost'
-        || isOutpostWindowOpenAtTime(nextShotTime, inputs.targetWindowDegrees);
-      if (!canAttackOutpost) {
-        hadBlockedAttempt = true;
-        nextShotTime += shotInterval;
-        continue;
-      }
-
-      const projectedHeat = heat + heatPerShot;
-      const exceedsHeatCap = projectedHeat > attacker.resolved.maxHeat + 1e-9;
-      if (exceedsHeatCap) {
-        const triggerEasterOverheat = overheatEasterChance > 0 && simulationRandom() < overheatEasterChance;
-        if (!triggerEasterOverheat) {
-          if (!heatLockActive) {
-            heatBlockedShots += 1;
-          }
-          heatLockActive = true;
-          hadBlockedAttempt = true;
-          // 超热时保持待发时间不推进，进入锁定等待冷却。
-          break;
-        }
-        easterOverheatShots += 1;
+    let hadHeatLockAttempt = false;
+    const fireProjectile = (allowOverlimit) => {
+      // 常规发射不允许超过上限；超限只允许由彩蛋触发。
+      if (!allowOverlimit && heat + heatPerShot > maxHeat + 1e-9) {
+        return { fired: false, overlimit: false };
       }
 
       let shotDamageNow = singleShotDamageBase;
@@ -1800,12 +1799,74 @@ function analyzeDamageLab(form = {}) {
           critReceivedStepNow += shotDamageNow;
         }
       }
+
       accumulatedShotHeat += heatPerShot;
-      heat = projectedHeat;
+      if (allowOverlimit) {
+        heat += heatPerShot;
+      } else {
+        heat = Math.min(maxHeat, heat + heatPerShot);
+      }
+      const overlimit = heat > maxHeat + 1e-9;
       peakHeat = Math.max(peakHeat, heat);
+      return { fired: true, overlimit };
+    };
+
+    while (nextShotTime <= currentTime + 1e-9) {
+      const canAttackOutpost = inputs.targetRole !== 'outpost'
+        || isOutpostWindowOpenAtTime(nextShotTime, inputs.targetWindowDegrees);
+      if (!canAttackOutpost) {
+        hadBlockedAttempt = true;
+        nextShotTime += shotInterval;
+        continue;
+      }
+
+      // 超热后锁管：在热量未回到 0 前，禁止一切发射。
+      if (heatLockUntilZero) {
+        if (heat <= 1e-9) {
+          heatLockUntilZero = false;
+          heatLockActive = false;
+          heatLockByOverlimit = false;
+        } else {
+          hadBlockedAttempt = true;
+          hadHeatLockAttempt = heatLockByOverlimit;
+          break;
+        }
+      }
+
+      const mainShot = fireProjectile(false);
+      if (!mainShot.fired) {
+        // 下一发会超热：仅等待冷却到可发射，不锁管。
+        if (!heatWaitingForSafeShot) {
+          heatWaitCount += 1;
+          heatWaitingForSafeShot = true;
+        }
+        hadBlockedAttempt = true;
+        hadHeatLockAttempt = false;
+        // 保持待发，等待冷却后再次尝试。
+        break;
+      }
       hadSuccessfulShot = true;
-      // 彩蛋超热后也进入锁定，直到热量归零。
-      heatLockActive = projectedHeat > attacker.resolved.maxHeat + 1e-9 ? true : false;
+      heatWaitingForSafeShot = false;
+
+      const triggerDoubleShot = easterDoubleShotChance > 0
+        && (maxHeat - heat) <= easterNearCapThreshold + 1e-9
+        && simulationRandom() < easterDoubleShotChance;
+      if (triggerDoubleShot) {
+        // 彩蛋：高射速且接近上限时，5% 概率瞬发第二发，可触发真实超限并锁管。
+        const burstShot = fireProjectile(true);
+        if (burstShot.fired && burstShot.overlimit) {
+          heatOverlimitCount += 1;
+          heatWaitCount += 1;
+          heatWaitingForSafeShot = false;
+          heatLockUntilZero = true;
+          heatLockByOverlimit = true;
+          heatLockActive = true;
+          hadBlockedAttempt = true;
+          hadHeatLockAttempt = true;
+          break;
+        }
+      }
+
       nextShotTime = shotInterval === Number.POSITIVE_INFINITY
         ? Number.POSITIVE_INFINITY
         : currentTime + shotInterval;
@@ -1820,7 +1881,9 @@ function analyzeDamageLab(form = {}) {
     } else if (hadBlockedAttempt) {
       noFireActive = true;
     }
+    heatLockActive = heatLockUntilZero && heatLockByOverlimit;
     noFireStepMask[index] = noFireActive ? 1 : 0;
+    heatLockStepMask[index] = heatLockActive ? 1 : 0;
     totalDamageCurve[index] = totalDamage;
     receivedDamageCurve[index] = totalReceivedDamage;
     shotStepDamageCurve[index] = shotDamageStepNow;
@@ -1835,7 +1898,7 @@ function analyzeDamageLab(form = {}) {
         adaptiveEndSec = adaptiveCandidate;
       }
     }
-    heatCurve[index] = heat;
+    heatCurve[index] = Math.max(0, heat);
     shotsCurve[index] = totalShots;
     if (index === totalSteps - 1) {
       lastComputedStepIndex = index;
@@ -1851,16 +1914,20 @@ function analyzeDamageLab(form = {}) {
   const usedCritStepCurve = critStepCurve.slice(0, usedCount);
   const usedCritReceivedStepCurve = critReceivedStepCurve.slice(0, usedCount);
   const usedTargetHealthCurve = targetHealthCurve.slice(0, usedCount);
-  const usedHeatCurve = heatCurve.slice(0, usedCount);
+  const usedHeatCurve = heatCurve.slice(0, usedCount)
+    .map((value) => Number(Math.max(0, value).toFixed(4)));
   const usedShotsCurve = shotsCurve.slice(0, usedCount);
   const usedOutpostWindowStepMask = outpostWindowStepMask.slice(0, usedCount);
   const usedNoFireStepMask = noFireStepMask.slice(0, usedCount);
+  const usedHeatLockStepMask = heatLockStepMask.slice(0, usedCount);
   const effectiveDurationSec = Math.max(usedTimeAxis[usedCount - 1], 1e-9);
   const hitSimulationCeiling = ttkSec === null && effectiveDurationSec >= simulationMaxDurationSec - 1e-6;
 
   const dpsCurve = buildRateCurve(usedTotalDamageCurve, dt);
   const stepDamageCurve = dpsCurve.map((value) => Number(value.toFixed(4)));
   const stepSingleDamageCurve = usedSingleShotNominalCurve.map((value) => Number(value.toFixed(4)));
+  const stepShotsCurve = usedShotsCurve.map((value) => Number(value.toFixed(4)));
+  const heatCapCurve = new Array(usedCount).fill(Number(maxHeat.toFixed(4)));
   const stepTotalDamageCurve = usedTotalDamageCurve.map((value) => Number(value.toFixed(4)));
   const stepTotalReceivedCurve = usedReceivedDamageCurve.map((value) => Number(value.toFixed(4)));
   const stepCritCurve = usedCritStepCurve.map((value) => Number(value.toFixed(4)));
@@ -1871,6 +1938,7 @@ function analyzeDamageLab(form = {}) {
   const forceOutpostFullWindowHighlight = structureCritEnabled
     && inputs.targetRole === 'outpost'
     && structureCritChance >= 1 - 1e-9;
+  peakHeat = usedHeatCurve.reduce((current, item) => Math.max(current, item), 0);
   const totalDamageFinal = usedTotalDamageCurve[usedCount - 1];
   const totalReceivedFinal = usedReceivedDamageCurve[usedCount - 1];
   const avgDps = totalDamageFinal / effectiveDurationSec;
@@ -1882,11 +1950,13 @@ function analyzeDamageLab(form = {}) {
   const outputSeries = [
     { key: 'dps', label: 'DPS(按1秒发弹)', color: '#cfff2e', values: stepDamageCurve },
     { key: 'singleDamage', label: '理论单发伤害', color: '#ff3ea5', values: stepSingleDamageCurve },
+    { key: 'shots', label: '发弹量', color: '#6ee7ff', values: stepShotsCurve },
     { key: 'heat', label: '热量', color: '#8b56ff', values: usedHeatCurve },
-    
+    { key: 'heatCap', label: '热量上限参考线', color: '#ffb84d', values: heatCapCurve, dashArray: [6, 4], noGlow: true },
   ];
   const outputChart = downsampleSeries(usedTimeAxis, outputSeries, null, {
     noFire: usedNoFireStepMask,
+    heatLock: usedHeatLockStepMask,
   });
   const targetChart = downsampleSeries(usedTimeAxis, [
     { key: 'receivedDamage', label: '累计受击', color: '#6ee7ff', values: stepTotalReceivedCurve },
@@ -1897,6 +1967,7 @@ function analyzeDamageLab(form = {}) {
     totalDamage: forceOutpostFullWindowHighlight ? outpostWindowMask : critDamageStepMask,
   }, {
     noFire: usedNoFireStepMask,
+    heatLock: usedHeatLockStepMask,
   });
 
   const attackerConfigText = [attacker.profileLabel, attacker.level ? `Lv.${attacker.level}` : '', attacker.postureLabel].filter(Boolean).join(' · ');
@@ -1904,13 +1975,13 @@ function analyzeDamageLab(form = {}) {
   const attackerTimelineTracks = buildTimelineTracks(inputs.attackerSchedules, 'attacker', effectiveDurationSec);
   const targetTimelineTracks = buildTimelineTracks(inputs.targetSchedules, 'target', effectiveDurationSec);
   const noteLines = [SAFE_MODEL_NOTE, STACKING_NOTE];
-  noteLines.push(`热量控制：严格上限 ${attacker.resolved.maxHeat.toFixed(1)}；17mm 每发 +10，42mm 每发 +100；若下一发会超上限则锁定枪管，直到热量归零`);
-  if (overheatEasterChance > 0) {
-    noteLines.push(`热量彩蛋：请求发弹频率 >20 时有 1% 概率触发超限发弹（本次触发 ${easterOverheatShots} 次）`);
+  noteLines.push(`热量控制：严格上限 ${attacker.resolved.maxHeat.toFixed(1)}；17mm 每发 +10，42mm 每发 +100；常规发射不会超限，若触发锁管需冷却到 0 才恢复发射`);
+  if (easterDoubleShotChance > 0) {
+    noteLines.push('热量彩蛋：请求发弹频率 >20Hz 且距离上限 <=40 时，单次射击有 5% 概率瞬发第二发；若因此超限将进入超限锁管');
   }
-  noteLines.push(`热量计数：累计发弹 ${totalShots} 发，累计发射注热 ${accumulatedShotHeat.toFixed(0)}`);
-  noteLines.push(`热量锁定统计：共触发 ${heatBlockedShots} 次，峰值热量 ${peakHeat.toFixed(1)}`);
-  noteLines.push('图中 20% 不透明度灰色遮罩表示未开火区间');
+  noteLines.push(`热量计数：累计发弹 ${totalShots} 发，累计发射注热总量 ${accumulatedShotHeat.toFixed(0)}（该值为累计总量，非当前热量）`);
+  noteLines.push(`热量等待统计：共触发 ${heatWaitCount} 次，其中超限锁管 ${heatOverlimitCount} 次，峰值热量 ${peakHeat.toFixed(1)}`);
+  noteLines.push('图中 20% 不透明度灰色遮罩表示未开火区间，淡红色遮罩仅表示“实际超限后锁管”区间');
   if (inputs.targetRole === 'outpost') { noteLines.push(buildOutpostWindowNote(inputs.targetWindowDegrees)); }
   noteLines.push(`命中建模：受击状态 ${targetMotionLabel}，命中率 ${targetBaseHitRatePercent.toFixed(1)}%，按逐发概率判定，命中后再判定暴击`);
   noteLines.push('单发伤害曲线按每时刻单发理论伤害绘制，不按均值/折算值，也不按暴击随机结果抖动');
@@ -1945,8 +2016,8 @@ function analyzeDamageLab(form = {}) {
     totalShots,
     lastReceiveRatio,
   });
-  if (heatBlockedShots > 0) {
-    const heatLockTauntLine = '这么高发弹频率现实里大概率是会锁枪管的对吧，我模拟一下很合理吧（doge）';
+  if (heatWaitCount > 0) {
+    const heatLockTauntLine = ' ';
     const mergedTauntLines = Array.isArray(taunt.lines) ? taunt.lines.slice() : [];
     if (!mergedTauntLines.includes(heatLockTauntLine)) {
       mergedTauntLines.push(heatLockTauntLine);
@@ -1966,8 +2037,9 @@ function analyzeDamageLab(form = {}) {
       { label: '峰值 DPS', value: peakDps.toFixed(2) },
       { label: '单发峰值', value: peakSingleShotDamage.toFixed(2), tone: 'neon-red' },
       { label: '累计发弹', value: String(totalShots) },
-      { label: '热量锁定次数', value: String(heatBlockedShots) },
-      { label: '累计发射注热', value: accumulatedShotHeat.toFixed(0) },
+      { label: '当前热量上限', value: maxHeat.toFixed(0) },
+      { label: '热量等待次数', value: String(heatWaitCount) },
+      { label: '超限锁管次数', value: String(heatOverlimitCount) },
       { label: '冷却峰值', value: `${peakCoolingRate.toFixed(2)}/s` },
       { label: '当前命中判定', value: `${(lastReceiveRatio * 100).toFixed(2)}%` },
       {
@@ -2006,19 +2078,20 @@ function analyzeDamageLab(form = {}) {
     },
     charts: {
       output: {
-        title: '输出总曲线图',
-        subtitle: '按请求发弹频率计算：DPS / 理论单发伤害 / 热量（灰色遮罩=没开火）',
-        unitHint: 'DPS / 理论单发伤害 / 热量',
+        title: '输出 曲线',
+        subtitle: '按请求发弹频率计算：DPS / 理论单发伤害 / 发弹量 / 热量（灰色=没开火，淡红=超限锁管）',
+        unitHint: 'DPS / 理论单发伤害 / 发弹量 / 热量',
         timeSec: outputChart.timeSec,
         series: outputChart.series,
         highlightMasks: outputChart.highlightMasks,
         highlightColor: '#ff2b2b',
         overlayMasks: outputChart.overlayMasks,
         noFireColor: 'rgba(128, 128, 128, 0.2)',
+        heatLockColor: 'rgba(255, 102, 102, 0.22)',
       },
       target: {
-        title: '血量与伤害总曲线图',
-        subtitle: ttkSec === null ? '累计受击 / 总伤害 / 敌方血量（当前时长内未归零，灰色遮罩=没开火）' : `累计受击 / 总伤害 / 敌方血量（${ttkSec.toFixed(2)} 秒归零，灰色遮罩=没开火）`,
+        title: '血量 伤害 曲线',
+        subtitle: ttkSec === null ? '累计受击 / 总伤害 / 敌方血量（当前时长内未归零，灰色=没开火，淡红=超限锁管）' : `累计受击 / 总伤害 / 敌方血量（${ttkSec.toFixed(2)} 秒归零，灰色=没开火，淡红=超限锁管）`,
         unitHint: '累计受击 / 总伤害 / 剩余血量',
         timeSec: targetChart.timeSec,
         series: targetChart.series,
@@ -2026,6 +2099,7 @@ function analyzeDamageLab(form = {}) {
         highlightColor: '#ff2b2b',
         overlayMasks: targetChart.overlayMasks,
         noFireColor: 'rgba(128, 128, 128, 0.2)',
+        heatLockColor: 'rgba(255, 102, 102, 0.22)',
       },
     },
   };
