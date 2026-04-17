@@ -156,8 +156,8 @@
   var THEME_ASSETS = {
     darkLogo: '../../assets/ARTINX-Calculate-Lab/DarkLogo.png',
     lightLogo: '../../assets/ARTINX-Calculate-Lab/WhiteLogo.png',
-    darkBackdropVideo: '../../assets/ARTINX-Calculate-Lab/Dark.mp4',
-    lightBackdropVideo: '../../assets/ARTINX-Calculate-Lab/White.mp4',
+    darkBackdropVideo: '../../assets/ARTINX-Calculate-Lab/Dark1.mp4',
+    lightBackdropVideo: '../../assets/ARTINX-Calculate-Lab/White1.mp4',
   };
 
   var THEME_HAND_ANCHORS = {
