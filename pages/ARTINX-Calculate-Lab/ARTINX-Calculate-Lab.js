@@ -34,6 +34,30 @@
     wheelScaleBase: null,
     wheelAnchorLock: null,
     wheelAnchorLockUntil: 0,
+    anchorReady: false,
+    anchorFreezePending: false,
+    anchorFreezeRaf: 0,
+    anchorFreezeFrames: 0,
+    anchorStableFrames: 0,
+    anchorLastMetrics: null,
+    anchorRebuild: false,
+    anchorRebuildTimer: 0,
+    anchorSnapshot: null,
+    anchorEntryGuardUntil: 0,
+    wheelExpanded: false,
+    wheelAssembling: false,
+    wheelDissolving: false,
+    wheelDissolveTimer: 0,
+    wheelAssembleTimer: 0,
+    wheelProtectionUntil: 0,
+    wheelTriggerNearby: false,
+    wheelTriggerBurst: false,
+    wheelTriggerBurstTimer: 0,
+    motionParticleTransition: false,
+    motionParticleTimer: 0,
+    motionParticleCooldownUntil: 0,
+    cultureShowcaseCollapsed: false,
+    sidebarCollapsed: true,
     mouseX: null,
     mouseY: null,
     floatingCheckRaf: 0,
@@ -56,7 +80,13 @@
   ];
 
   var EXHIBIT_ROTATE_INTERVAL_MS = 4000;
-  var FLOOD_DURATION_MS = 680;
+  var FLOOD_DURATION_MS = 1000;
+  var VIEW_MODE_QUERY_KEY = 'view';
+  var VIEW_MODE_INDEX = 'index';
+  var EXHIBIT_INTERACT_RADIUS = 132;
+  var EXHIBIT_INTERACT_RADIUS_SQ = EXHIBIT_INTERACT_RADIUS * EXHIBIT_INTERACT_RADIUS;
+  var EXHIBIT_GLOW_RADIUS = 146;
+  var EXHIBIT_GLOW_RADIUS_SQ = EXHIBIT_GLOW_RADIUS * EXHIBIT_GLOW_RADIUS;
 
   var exhibitRuntime = {
     inited: false,
@@ -81,6 +111,8 @@
     selectorSpacing: 74,
     selectorSuppressClickUntil: 0,
     selectorDragging: false,
+    pointerLeft: 0,
+    pointerTop: 0,
     loadToken: 0,
   };
 
@@ -90,6 +122,8 @@
     dpr: 1,
     width: 0,
     height: 0,
+    offsetLeft: 0,
+    offsetTop: 0,
     particles: [],
     streams: [],
     bits: [],
@@ -99,11 +133,11 @@
   var COMPONENT_WHEEL_SLOTS = [
     {
       key: 'damage-lab',
-      label: '伤害计算',
-      title: '伤害计算',
+      label: 'Damage Lab',
+      title: 'Damage Studio',
       effectLine: '逐发 诊断出伤 + 曲线分析',
       detailLine: '分界面 · 伤害计算组件',
-      shortLabel: '伤',
+      shortLabel: 'DL',
       available: true,
     },
     {
@@ -712,24 +746,283 @@
     return Math.max(min, Math.min(max, value));
   }
 
+  function getWheelScaleValue() {
+    var scale = toNumber(appRoot.style.getPropertyValue('--wheel-scale'), 1);
+    return Number.isFinite(scale) && scale > 0 ? scale : 1;
+  }
+
+  function clearWheelTimers() {
+    if (state.wheelDissolveTimer) {
+      window.clearTimeout(state.wheelDissolveTimer);
+      state.wheelDissolveTimer = 0;
+    }
+    if (state.wheelAssembleTimer) {
+      window.clearTimeout(state.wheelAssembleTimer);
+      state.wheelAssembleTimer = 0;
+    }
+    if (state.wheelTriggerBurstTimer) {
+      window.clearTimeout(state.wheelTriggerBurstTimer);
+      state.wheelTriggerBurstTimer = 0;
+    }
+  }
+
+  function setWheelTriggerNearby(nextValue) {
+    var normalized = !!nextValue;
+    if (state.wheelTriggerNearby === normalized) {
+      return;
+    }
+    state.wheelTriggerNearby = normalized;
+    applyShellChrome();
+  }
+
+  function updateWheelTriggerProximity(clientX, clientY) {
+    if (!state.hideUiForBackdrop || state.wheelExpanded || state.wheelAssembling || state.wheelDissolving) {
+      setWheelTriggerNearby(false);
+      return;
+    }
+    if (!Number.isFinite(clientX) || !Number.isFinite(clientY)) {
+      setWheelTriggerNearby(false);
+      return;
+    }
+    var triggerX = (window.innerWidth || 0) * 0.55;
+    var triggerY = (window.innerHeight || 0) * 0.55;
+    var dx = clientX - triggerX;
+    var dy = clientY - triggerY;
+    var dist = Math.sqrt(dx * dx + dy * dy);
+    var revealRadius = Math.max(150, Math.min(window.innerWidth || 0, window.innerHeight || 0) * 0.16);
+    setWheelTriggerNearby(dist <= revealRadius);
+  }
+
+  function triggerMotionParticleTransition(durationMs) {
+    var now = Date.now();
+    if (now < state.motionParticleCooldownUntil) {
+      return;
+    }
+    if (state.motionParticleTimer) {
+      window.clearTimeout(state.motionParticleTimer);
+      state.motionParticleTimer = 0;
+    }
+    state.motionParticleTransition = true;
+    state.motionParticleCooldownUntil = now + 240;
+    applyShellChrome();
+    state.motionParticleTimer = window.setTimeout(function () {
+      state.motionParticleTransition = false;
+      state.motionParticleTimer = 0;
+      applyShellChrome();
+    }, Math.max(240, toNumber(durationMs, 460)));
+  }
+
+  function beginTriggerBurst() {
+    if (state.wheelTriggerBurstTimer) {
+      window.clearTimeout(state.wheelTriggerBurstTimer);
+      state.wheelTriggerBurstTimer = 0;
+    }
+    state.wheelTriggerBurst = true;
+    applyShellChrome();
+    state.wheelTriggerBurstTimer = window.setTimeout(function () {
+      state.wheelTriggerBurst = false;
+      state.wheelTriggerBurstTimer = 0;
+      applyShellChrome();
+    }, 560);
+  }
+
+  function updateWheelFlyOffsetVars() {
+    var triggerX = (window.innerWidth || 0) * 0.55;
+    var triggerY = (window.innerHeight || 0) * 0.55;
+    var targetX = (window.innerWidth || 0) * 0.5;
+    var targetY = (window.innerHeight || 0) * 0.62;
+    appRoot.style.setProperty('--wheel-fly-dx', (triggerX - targetX).toFixed(2) + 'px');
+    appRoot.style.setProperty('--wheel-fly-dy', (triggerY - targetY).toFixed(2) + 'px');
+    appRoot.style.setProperty('--wheel-trigger-left', triggerX.toFixed(2) + 'px');
+    appRoot.style.setProperty('--wheel-trigger-top', triggerY.toFixed(2) + 'px');
+  }
+
+  function hideWheelInstant() {
+    clearWheelTimers();
+    state.wheelExpanded = false;
+    state.wheelAssembling = false;
+    state.wheelDissolving = false;
+    state.wheelTriggerNearby = false;
+    state.wheelTriggerBurst = false;
+  }
+
+  function beginWheelAssembly() {
+    if (!state.hideUiForBackdrop) {
+      return;
+    }
+    clearWheelTimers();
+    updateWheelFlyOffsetVars();
+    beginTriggerBurst();
+    triggerMotionParticleTransition(620);
+    state.wheelExpanded = true;
+    state.wheelAssembling = true;
+    state.wheelDissolving = false;
+    state.wheelProtectionUntil = Date.now() + 1200;
+    applyShellChrome();
+    state.wheelAssembleTimer = window.setTimeout(function () {
+      state.wheelAssembling = false;
+      state.wheelAssembleTimer = 0;
+      applyShellChrome();
+    }, 720);
+  }
+
+  function beginWheelDissolve() {
+    if (!state.wheelExpanded || state.wheelDissolving) {
+      return;
+    }
+    clearWheelTimers();
+    updateWheelFlyOffsetVars();
+    triggerMotionParticleTransition(520);
+    state.wheelAssembling = false;
+    state.wheelDissolving = true;
+    applyShellChrome();
+    state.wheelDissolveTimer = window.setTimeout(function () {
+      state.wheelDissolving = false;
+      state.wheelExpanded = false;
+      state.wheelDissolveTimer = 0;
+      applyShellChrome();
+    }, 560);
+  }
+
+  function updateWheelDistanceFade(clientX, clientY) {
+    if (!state.hideUiForBackdrop || !state.wheelExpanded || state.wheelAssembling || state.wheelDissolving) {
+      return;
+    }
+    if (Date.now() < state.wheelProtectionUntil) {
+      return;
+    }
+    if (state.wheelDrag || exhibitRuntime.selectorDragging) {
+      return;
+    }
+    var wheel = document.querySelector('.component-revolver');
+    if (!wheel) {
+      return;
+    }
+    var rect = wheel.getBoundingClientRect();
+    if (rect.width < 2 || rect.height < 2) {
+      return;
+    }
+    var centerX = rect.left + rect.width * 0.5;
+    var centerY = rect.top + rect.height * 0.5;
+    var dx = clientX - centerX;
+    var dy = clientY - centerY;
+    var dist = Math.sqrt(dx * dx + dy * dy);
+    var threshold = Math.max(300, Math.min(window.innerWidth || 0, window.innerHeight || 0) * 0.28);
+    if (dist > threshold) {
+      beginWheelDissolve();
+    }
+  }
+
+  function triggerAnchorRebuild() {
+    if (Date.now() < state.anchorEntryGuardUntil) {
+      return;
+    }
+    if (state.anchorRebuildTimer) {
+      return;
+    }
+    state.anchorRebuild = true;
+    applyShellChrome();
+    state.anchorRebuildTimer = window.setTimeout(function () {
+      state.anchorRebuildTimer = 0;
+      state.anchorRebuild = false;
+      startAnchorFreeze(false);
+      triggerMotionParticleTransition(500);
+    }, 100);
+  }
+
+  function startAnchorFreeze(resetScaleBase) {
+    state.anchorReady = false;
+    state.anchorSnapshot = null;
+    state.anchorFreezePending = true;
+    state.anchorFreezeFrames = 8;
+    state.anchorStableFrames = 0;
+    state.anchorLastMetrics = null;
+    appRoot.classList.remove('anchor-ready');
+    appRoot.classList.add('anchor-frozen');
+    updateWheelAnchorFromBackdrop(!!resetScaleBase);
+    if (state.anchorFreezeRaf) {
+      window.cancelAnimationFrame(state.anchorFreezeRaf);
+      state.anchorFreezeRaf = 0;
+    }
+
+    var maxFrameBudget = 120;
+    function hasRenderableBackdropMetrics() {
+      var video = document.getElementById('backdropVideo');
+      if (!video) {
+        return false;
+      }
+      var rect = video.getBoundingClientRect();
+      return rect.width > 2 && rect.height > 2 && toNumber(video.videoWidth, 0) > 0 && toNumber(video.videoHeight, 0) > 0;
+    }
+
+    function tick() {
+      updateWheelAnchorFromBackdrop();
+      state.anchorFreezeFrames -= 1;
+      maxFrameBudget -= 1;
+      if (state.anchorFreezeFrames <= 0 && state.anchorStableFrames >= 8 && hasRenderableBackdropMetrics()) {
+        state.anchorFreezePending = false;
+        state.anchorReady = true;
+        state.wheelAnchorLock = {
+          x: appRoot.style.getPropertyValue('--wheel-anchor-x') || '50%',
+          y: appRoot.style.getPropertyValue('--wheel-anchor-y') || '50%',
+          left: appRoot.style.getPropertyValue('--wheel-anchor-left') || '50%',
+          top: appRoot.style.getPropertyValue('--wheel-anchor-top') || '50%',
+          scale: appRoot.style.getPropertyValue('--wheel-scale') || '1',
+        };
+        state.wheelAnchorLockUntil = Date.now() + 1600;
+        state.anchorFreezeRaf = 0;
+        applyShellChrome();
+        return;
+      }
+      if (maxFrameBudget <= 0) {
+        maxFrameBudget = 60;
+        state.anchorFreezeFrames = 4;
+        state.anchorStableFrames = 0;
+      }
+      state.anchorFreezeRaf = window.requestAnimationFrame(tick);
+    }
+
+    state.anchorFreezeRaf = window.requestAnimationFrame(tick);
+  }
+
   function updateWheelAnchorFromBackdrop(resetScaleBase) {
-    if (!resetScaleBase && state.wheelAnchorLock && Date.now() < state.wheelAnchorLockUntil) {
+    var anchorLocked = !resetScaleBase && !state.anchorFreezePending && state.wheelAnchorLock && Date.now() < state.wheelAnchorLockUntil;
+    function applyAnchorLock() {
+      if (!anchorLocked) {
+        return false;
+      }
       appRoot.style.setProperty('--wheel-anchor-x', state.wheelAnchorLock.x);
       appRoot.style.setProperty('--wheel-anchor-y', state.wheelAnchorLock.y);
       appRoot.style.setProperty('--wheel-anchor-left', state.wheelAnchorLock.left);
       appRoot.style.setProperty('--wheel-anchor-top', state.wheelAnchorLock.top);
       appRoot.style.setProperty('--wheel-scale', state.wheelAnchorLock.scale);
-      return;
+      return true;
+    }
+
+    function applyVideoCenterFallback() {
+      var style = window.getComputedStyle(appRoot);
+      var fallbackX = style.getPropertyValue('--wheel-anchor-x').trim() || '50%';
+      var fallbackY = style.getPropertyValue('--wheel-anchor-y').trim() || '50%';
+      appRoot.style.setProperty('--video-center-left', fallbackX);
+      appRoot.style.setProperty('--video-center-top', fallbackY);
     }
 
     var backdropVideo = document.getElementById('backdropVideo');
     if (!backdropVideo) {
+      applyVideoCenterFallback();
+      if (applyAnchorLock()) {
+        return;
+      }
       appRoot.style.setProperty('--wheel-scale', '1');
       return;
     }
 
     var rect = backdropVideo.getBoundingClientRect();
     if (rect.width < 2 || rect.height < 2) {
+      applyVideoCenterFallback();
+      if (applyAnchorLock()) {
+        return;
+      }
       appRoot.style.setProperty('--wheel-scale', '1');
       return;
     }
@@ -759,6 +1052,10 @@
     var handAnchor = state.theme === 'dark' ? THEME_HAND_ANCHORS.dark : THEME_HAND_ANCHORS.light;
     var anchorX = rect.left + offsetX + renderedWidth * handAnchor.x;
     var anchorY = rect.top + offsetY + renderedHeight * handAnchor.y;
+    var videoLeft = rect.left + offsetX;
+    var videoTop = rect.top + offsetY;
+    var videoCenterX = videoLeft + renderedWidth * 0.5;
+    var videoCenterY = videoTop + renderedHeight * 0.5;
 
     var viewportWidth = Math.max(1, window.innerWidth || document.documentElement.clientWidth || 1);
     var viewportHeight = Math.max(1, window.innerHeight || document.documentElement.clientHeight || 1);
@@ -770,6 +1067,58 @@
       state.wheelScaleBase = renderedHeight;
     }
     var videoScale = renderedHeight / Math.max(1, state.wheelScaleBase);
+
+    var nextSnapshot = {
+      x: anchorX,
+      y: anchorY,
+      scale: videoScale,
+    };
+
+    var nextMetrics = {
+      left: videoLeft,
+      top: videoTop,
+      width: renderedWidth,
+      height: renderedHeight,
+      x: anchorX,
+      y: anchorY,
+      scale: videoScale,
+    };
+    if (state.anchorLastMetrics) {
+      var prevMetrics = state.anchorLastMetrics;
+      var stableRect = Math.abs(nextMetrics.left - prevMetrics.left) < 0.4
+        && Math.abs(nextMetrics.top - prevMetrics.top) < 0.4
+        && Math.abs(nextMetrics.width - prevMetrics.width) < 0.4
+        && Math.abs(nextMetrics.height - prevMetrics.height) < 0.4;
+      var stableAnchor = Math.abs(nextMetrics.x - prevMetrics.x) < 0.8
+        && Math.abs(nextMetrics.y - prevMetrics.y) < 0.8
+        && Math.abs(nextMetrics.scale - prevMetrics.scale) < 0.003;
+      if (stableRect && stableAnchor) {
+        state.anchorStableFrames += 1;
+      } else {
+        state.anchorStableFrames = 0;
+      }
+    }
+    state.anchorLastMetrics = nextMetrics;
+
+    if (state.anchorReady && state.anchorSnapshot) {
+      var deltaX = Math.abs(nextSnapshot.x - state.anchorSnapshot.x);
+      var deltaY = Math.abs(nextSnapshot.y - state.anchorSnapshot.y);
+      var deltaScale = Math.abs(nextSnapshot.scale - state.anchorSnapshot.scale);
+      if (Date.now() >= state.anchorEntryGuardUntil && state.hideUiForBackdrop && (deltaX > 1.2 || deltaY > 1.2 || deltaScale > 0.005)) {
+        triggerMotionParticleTransition(420);
+      }
+      if (Date.now() >= state.anchorEntryGuardUntil && (deltaX > 4.2 || deltaY > 4.2 || deltaScale > 0.02)) {
+        triggerAnchorRebuild();
+      }
+    }
+    state.anchorSnapshot = nextSnapshot;
+
+    appRoot.style.setProperty('--video-center-left', videoCenterX.toFixed(2) + 'px');
+    appRoot.style.setProperty('--video-center-top', videoCenterY.toFixed(2) + 'px');
+
+    if (applyAnchorLock()) {
+      return;
+    }
 
     appRoot.style.setProperty('--wheel-anchor-x', anchorXPercent.toFixed(3) + '%');
     appRoot.style.setProperty('--wheel-anchor-y', anchorYPercent.toFixed(3) + '%');
@@ -800,6 +1149,8 @@
     exhibitRuntime.particles = [];
     exhibitRuntime.mouseX = -9999;
     exhibitRuntime.mouseY = -9999;
+    exhibitRuntime.pointerLeft = 0;
+    exhibitRuntime.pointerTop = 0;
     exhibitRuntime.selectorDragging = false;
     stopExhibitSelectorMotion();
     teardownFocusFlow();
@@ -810,6 +1161,8 @@
     focusFlowRuntime.ctx = null;
     focusFlowRuntime.width = 0;
     focusFlowRuntime.height = 0;
+    focusFlowRuntime.offsetLeft = 0;
+    focusFlowRuntime.offsetTop = 0;
     focusFlowRuntime.particles = [];
     focusFlowRuntime.streams = [];
     focusFlowRuntime.bits = [];
@@ -843,10 +1196,19 @@
   function sampleThemeGradient(t) {
     var palette = getThemeParticlePalette();
     var ratio = clamp(t, 0, 1);
-    if (ratio <= 0.5) {
-      return mixColor(palette.a, palette.c, ratio * 2);
+    var weightedRatio = Math.pow(ratio, 0.82);
+    var base;
+    if (weightedRatio <= 0.5) {
+      base = mixColor(palette.a, palette.c, weightedRatio * 2);
+    } else {
+      base = mixColor(palette.c, palette.b, (weightedRatio - 0.5) * 2);
     }
-    return mixColor(palette.c, palette.b, (ratio - 0.5) * 2);
+    var pulse = Math.sin(weightedRatio * Math.PI) * 24;
+    return {
+      r: Math.round(clamp(base.r + pulse * 0.24, 0, 255)),
+      g: Math.round(clamp(base.g + pulse * 0.46, 0, 255)),
+      b: Math.round(clamp(base.b + pulse * 0.36, 0, 255)),
+    };
   }
 
   function getExhibitSelectorMetrics() {
@@ -861,7 +1223,9 @@
     var selectorStyle = window.getComputedStyle(selector);
     var gap = toNumber(selectorStyle.columnGap || selectorStyle.gap, 0);
     var thumbRect = firstThumb.getBoundingClientRect();
-    var spacing = Math.max(42, thumbRect.width + gap);
+    var wheelScale = getWheelScaleValue();
+    var baseWidth = Math.max(1, thumbRect.width);
+    var spacing = Math.max(42 * wheelScale, baseWidth + gap);
     return {
       selector: selector,
       thumbs: selector.querySelectorAll('.exhibit-thumb'),
@@ -907,6 +1271,7 @@
     }
     var count = metrics.thumbs.length;
     var spacing = metrics.spacing;
+    var wheelScale = getWheelScaleValue();
     exhibitRuntime.selectorSpacing = spacing;
 
     if (!Number.isFinite(exhibitRuntime.selectorOffsetPx)) {
@@ -923,7 +1288,7 @@
       var visible = abs <= 2.4;
       var focus = clamp(1 - abs / 2.5, 0, 1);
       var x = rel * spacing;
-      var y = 14 - Math.pow(abs, 1.26) * 8.2;
+      var y = (14 * wheelScale) - Math.pow(abs, 1.26) * (8.2 * wheelScale);
       var scale = 0.72 + focus * 0.44;
       var rotateX = 16 + abs * 8.5;
       var opacity = visible ? (0.2 + focus * 0.8) : 0;
@@ -1146,7 +1511,7 @@
     var softLimit = Math.max(width, height) * 0.48;
     var shouldTrim = normalized.length > 600 && cutoff > softLimit;
     var limit = shouldTrim ? cutoff : distances[distances.length - 1];
-    return normalized
+    var result = normalized
       .filter(function (item) { return item.d <= limit; })
       .map(function (item) {
         return {
@@ -1155,6 +1520,18 @@
           a: item.a,
         };
       });
+
+    var maxPoints = clamp(Math.floor((width * height) / 410), 4800, 10400);
+    if (result.length <= maxPoints) {
+      return result;
+    }
+
+    var sampled = [];
+    var stride = result.length / maxPoints;
+    for (var si = 0; si < maxPoints; si += 1) {
+      sampled.push(result[Math.floor(si * stride)]);
+    }
+    return sampled;
   }
 
   function createFlowBit(width, height, streamCount) {
@@ -1239,6 +1616,8 @@
       focusFlowRuntime.width = nextWidth;
       focusFlowRuntime.height = nextHeight;
       focusFlowRuntime.dpr = dpr;
+      focusFlowRuntime.offsetLeft = rect.left;
+      focusFlowRuntime.offsetTop = rect.top;
       canvas.width = nextWidth;
       canvas.height = nextHeight;
       canvas.style.width = rect.width + 'px';
@@ -1246,6 +1625,9 @@
       focusFlowRuntime.particles = [];
       focusFlowRuntime.streams = [];
       focusFlowRuntime.bits = [];
+    } else {
+      focusFlowRuntime.offsetLeft = rect.left;
+      focusFlowRuntime.offsetTop = rect.top;
     }
 
     if (focusFlowRuntime.seededTheme !== state.theme) {
@@ -1587,21 +1969,23 @@
       var p = exhibitRuntime.particles[i];
       var dx = p.x - exhibitRuntime.mouseX;
       var dy = p.y - exhibitRuntime.mouseY;
-      var dist = Math.sqrt(dx * dx + dy * dy);
-      if (dist < 72) {
-        var force = ((72 - dist) / 72) * 0.95;
-        var angle = Math.atan2(dy, dx);
-        p.vx += Math.cos(angle) * force;
-        p.vy += Math.sin(angle) * force;
+      var distSq = dx * dx + dy * dy;
+      var dist = -1;
+      if (distSq < EXHIBIT_INTERACT_RADIUS_SQ) {
+        dist = Math.sqrt(Math.max(distSq, 0.0001));
+        var force = ((EXHIBIT_INTERACT_RADIUS - dist) / EXHIBIT_INTERACT_RADIUS) * 1.28;
+        var invDist = 1 / dist;
+        p.vx += dx * invDist * force;
+        p.vy += dy * invDist * force;
       }
 
-      p.vx += (p.tx - p.x) * 0.045;
-      p.vy += (p.ty - p.y) * 0.045;
-      p.vx *= 0.82;
-      p.vy *= 0.82;
+      p.vx += (p.tx - p.x) * 0.062;
+      p.vy += (p.ty - p.y) * 0.062;
+      p.vx *= 0.8;
+      p.vy *= 0.8;
       p.x += p.vx;
       p.y += p.vy;
-      p.alpha += (p.ta - p.alpha) * 0.08;
+      p.alpha += (p.ta - p.alpha) * 0.14;
 
       if (!Number.isFinite(p.x) || !Number.isFinite(p.y)) {
         p.x = p.tx;
@@ -1619,10 +2003,28 @@
 
       var gradT = clamp(((p.x / Math.max(1, width)) * 0.38) + ((p.y / Math.max(1, height)) * 0.42) + ((Number.isFinite(p.tone) ? p.tone : 0.5) * 0.2), 0, 1);
       var color = sampleThemeGradient(gradT);
-      ctx.fillStyle = 'rgba(' + color.r + ',' + color.g + ',' + color.b + ',' + clamp(p.alpha, 0, 1).toFixed(3) + ')';
+      var alpha = clamp(p.alpha * 1.18, 0, 1);
+      ctx.fillStyle = 'rgba(' + color.r + ',' + color.g + ',' + color.b + ',' + alpha.toFixed(3) + ')';
       ctx.beginPath();
-      ctx.arc(p.x, p.y, 1.72, 0, Math.PI * 2);
+      ctx.arc(p.x, p.y, 1.9, 0, Math.PI * 2);
       ctx.fill();
+
+      var trailAlpha = clamp(alpha * 0.28, 0, 0.46);
+      ctx.fillStyle = 'rgba(' + color.r + ',' + color.g + ',' + color.b + ',' + trailAlpha.toFixed(3) + ')';
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, 3.1, 0, Math.PI * 2);
+      ctx.fill();
+
+      if (distSq < EXHIBIT_GLOW_RADIUS_SQ) {
+        if (dist < 0) {
+          dist = Math.sqrt(Math.max(distSq, 0.0001));
+        }
+        var glowAlpha = clamp((EXHIBIT_GLOW_RADIUS - dist) / EXHIBIT_GLOW_RADIUS, 0, 1) * 0.24;
+        ctx.fillStyle = 'rgba(' + color.r + ',' + color.g + ',' + color.b + ',' + glowAlpha.toFixed(3) + ')';
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, 3.4, 0, Math.PI * 2);
+        ctx.fill();
+      }
     }
   }
 
@@ -1641,8 +2043,12 @@
     ctx.clearRect(0, 0, width, height);
 
     var palette = getThemeParticlePalette();
-    var pointerX = Number.isFinite(state.mouseX) ? state.mouseX * focusFlowRuntime.dpr : -9999;
-    var pointerY = Number.isFinite(state.mouseY) ? state.mouseY * focusFlowRuntime.dpr : -9999;
+    var pointerX = Number.isFinite(state.mouseX)
+      ? (state.mouseX - focusFlowRuntime.offsetLeft) * focusFlowRuntime.dpr
+      : -9999;
+    var pointerY = Number.isFinite(state.mouseY)
+      ? (state.mouseY - focusFlowRuntime.offsetTop) * focusFlowRuntime.dpr
+      : -9999;
 
     var streamXMap = [];
     for (var si = 0; si < focusFlowRuntime.streams.length; si += 1) {
@@ -1769,9 +2175,8 @@
       exhibitRuntime.canvas = canvas;
       exhibitRuntime.ctx = canvas.getContext('2d');
       exhibitRuntime.moveHandler = function (event) {
-        var rect = canvas.getBoundingClientRect();
-        exhibitRuntime.mouseX = event.clientX - rect.left;
-        exhibitRuntime.mouseY = event.clientY - rect.top;
+        exhibitRuntime.mouseX = event.clientX - exhibitRuntime.pointerLeft;
+        exhibitRuntime.mouseY = event.clientY - exhibitRuntime.pointerTop;
       };
       exhibitRuntime.leaveHandler = function () {
         exhibitRuntime.mouseX = -9999;
@@ -1784,6 +2189,8 @@
 
     var dpr = Math.max(1, window.devicePixelRatio || 1);
     var rect = zone.getBoundingClientRect();
+    exhibitRuntime.pointerLeft = rect.left;
+    exhibitRuntime.pointerTop = rect.top;
     var nextWidth = Math.max(80, Math.floor(rect.width * dpr));
     var nextHeight = Math.max(80, Math.floor(rect.height * dpr));
     if (nextWidth !== exhibitRuntime.width || nextHeight !== exhibitRuntime.height) {
@@ -1884,6 +2291,13 @@
     appRoot.classList.toggle('backdrop-collapsed', !state.backdropExpanded);
     appRoot.classList.toggle('show-floating-title', state.showFloatingTitle);
     appRoot.classList.toggle('focus-mode', state.hideUiForBackdrop);
+    appRoot.classList.toggle('wheel-expanded', state.wheelExpanded);
+    appRoot.classList.toggle('wheel-assembling', state.wheelAssembling);
+    appRoot.classList.toggle('wheel-dissolving', state.wheelDissolving);
+    appRoot.classList.toggle('wheel-trigger-nearby', state.wheelTriggerNearby);
+    appRoot.classList.toggle('wheel-trigger-burst', state.wheelTriggerBurst);
+    appRoot.classList.toggle('motion-particle-transition', state.motionParticleTransition);
+    appRoot.classList.toggle('culture-showcase-collapsed', state.cultureShowcaseCollapsed);
     appRoot.classList.toggle('backdrop-transitioning', state.backdropTransitioning);
     appRoot.classList.toggle('backdrop-revealing', state.backdropRevealing);
 
@@ -1916,11 +2330,6 @@
       teardownCultureExhibit();
     }
 
-    var heroLogo = document.getElementById('heroLogo');
-    if (heroLogo) {
-      heroLogo.src = state.theme === 'dark' ? THEME_ASSETS.darkLogo : THEME_ASSETS.lightLogo;
-    }
-
     var frost = document.getElementById('pageFrost');
     if (frost) {
       frost.classList.toggle('page-content-frost-dark', state.theme === 'dark');
@@ -1937,22 +2346,34 @@
       floatingThemeSwitch.textContent = state.theme === 'dark' ? '霓虹' : '极昼';
     }
 
+    appRoot.classList.toggle('anchor-ready', state.anchorReady);
+    appRoot.classList.toggle('anchor-frozen', state.anchorFreezePending);
+    appRoot.classList.toggle('anchor-rebuild', state.anchorRebuild);
+    syncQuickSidebarUi();
+
     scheduleFloatingTitleObstructionCheck();
   }
 
-  function startBackdropReveal() {
+  function startBackdropReveal(floodDurationMs) {
     if (state.backdropRevealTimer) {
       window.clearTimeout(state.backdropRevealTimer);
     }
+    var floodDuration = Math.max(0, toNumber(floodDurationMs, FLOOD_DURATION_MS));
     window.requestAnimationFrame(function () {
       window.requestAnimationFrame(function () {
-        state.backdropTransitioning = false;
         state.backdropRevealing = true;
         applyShellChrome();
+        if (state.backdropTransitionTimer) {
+          window.clearTimeout(state.backdropTransitionTimer);
+        }
+        state.backdropTransitionTimer = window.setTimeout(function () {
+          state.backdropTransitioning = false;
+          applyShellChrome();
+        }, floodDuration);
         state.backdropRevealTimer = window.setTimeout(function () {
           state.backdropRevealing = false;
           applyShellChrome();
-        }, 750);
+        }, Math.max(450, floodDuration));
       });
     });
   }
@@ -2014,6 +2435,43 @@
         + '<span class="exhibit-thumb-overlay"></span>'
         + '</button>';
     }).join('');
+  }
+
+  function buildQuickSidebarItemsHtml() {
+    var componentList = COMPONENT_WHEEL_SLOTS.map(function (slot, index) {
+      var activeClass = index === state.componentWheelIndex ? ' quick-sidebar-item-active' : '';
+      var lockClass = slot.available ? ' quick-sidebar-item-ready' : ' quick-sidebar-item-locked';
+      var shortLabel = slot.shortLabel || slot.label.slice(0, 2);
+      return '<button class="quick-sidebar-item' + activeClass + lockClass + '" type="button" data-action="quick-wheel-slot" data-wheel-index="' + index + '" title="' + escapeHtml(slot.title || slot.label || 'Module') + '">'
+        + '<text class="quick-sidebar-item-short">' + escapeHtml(shortLabel) + '</text>'
+        + '<text class="quick-sidebar-item-label">' + escapeHtml(slot.title || slot.label || 'Module') + '</text>'
+        + '</button>';
+    }).join('');
+
+    var homeActiveClass = state.hideUiForBackdrop ? ' quick-sidebar-item-active' : '';
+    return ''
+      + '<text class="quick-sidebar-section-title">主页</text>'
+      + '<button class="quick-sidebar-item quick-sidebar-item-home' + homeActiveClass + '" type="button" data-action="quick-home" title="主页">'
+      + '<text class="quick-sidebar-item-short">HP</text>'
+      + '<text class="quick-sidebar-item-label">主页</text>'
+      + '</button>'
+      + '<text class="quick-sidebar-section-title">组件</text>'
+      + '<view class="quick-sidebar-group">' + componentList + '</view>';
+  }
+
+  function syncQuickSidebarUi() {
+    var sidebar = document.getElementById('quickSidebar');
+    if (!sidebar) {
+      return;
+    }
+    var list = document.getElementById('quickSidebarList');
+    if (list) {
+      list.innerHTML = buildQuickSidebarItemsHtml();
+    }
+    var logo = document.getElementById('quickSidebarLogo');
+    if (logo) {
+      logo.src = state.theme === 'dark' ? THEME_ASSETS.darkLogo : THEME_ASSETS.lightLogo;
+    }
   }
 
   function updateComponentHintBySlot(slot) {
@@ -2088,6 +2546,129 @@
     }, 380);
   }
 
+  function findWheelSlotIndexByKey(slotKey) {
+    var key = String(slotKey || '').toLowerCase();
+    if (!key) {
+      return -1;
+    }
+    for (var i = 0; i < COMPONENT_WHEEL_SLOTS.length; i += 1) {
+      var slot = COMPONENT_WHEEL_SLOTS[i];
+      if (slot && String(slot.key || '').toLowerCase() === key) {
+        return i;
+      }
+    }
+    return -1;
+  }
+
+  function normalizeViewModeKey(rawMode) {
+    var mode = String(rawMode || '').toLowerCase();
+    if (mode === VIEW_MODE_INDEX) {
+      return VIEW_MODE_INDEX;
+    }
+    return findWheelSlotIndexByKey(mode) >= 0 ? mode : VIEW_MODE_INDEX;
+  }
+
+  function getViewModeFromUrl() {
+    var params = new URLSearchParams(window.location.search || '');
+    return normalizeViewModeKey(params.get(VIEW_MODE_QUERY_KEY));
+  }
+
+  function syncViewModeUrl(mode, usePushState) {
+    if (!window.history || !window.location) {
+      return;
+    }
+    var nextMode = normalizeViewModeKey(mode);
+    var currentParams = new URLSearchParams(window.location.search || '');
+    currentParams.set(VIEW_MODE_QUERY_KEY, nextMode);
+    var nextQuery = currentParams.toString();
+    var nextUrl = window.location.pathname + (nextQuery ? '?' + nextQuery : '') + (window.location.hash || '');
+    var fn = usePushState ? 'pushState' : 'replaceState';
+    try {
+      window.history[fn](null, '', nextUrl);
+    } catch (error) {
+      // ignore history errors in restricted contexts
+    }
+  }
+
+  function applyBackdropViewMode(viewModeKey, usePushState) {
+    var normalizedMode = normalizeViewModeKey(viewModeKey);
+    var toFocusMode = normalizedMode === VIEW_MODE_INDEX;
+    if (toFocusMode) {
+      state.wheelAnchorLock = null;
+      state.wheelAnchorLockUntil = 0;
+      state.anchorEntryGuardUntil = Date.now() + 2600;
+      startAnchorFreeze(true);
+      updateWheelAnchorFromBackdrop(true);
+      hideWheelInstant();
+    }
+
+    state.backdropExpanded = toFocusMode;
+    state.hideUiForBackdrop = toFocusMode;
+
+    if (!toFocusMode) {
+      state.wheelAnchorLock = null;
+      state.wheelAnchorLockUntil = 0;
+      hideWheelInstant();
+      startAnchorFreeze(true);
+      var slotIndex = findWheelSlotIndexByKey(normalizedMode);
+      if (slotIndex < 0) {
+        slotIndex = 0;
+      }
+      state.componentWheelIndex = slotIndex;
+      state.componentWheelAngle = normalizeWheelAngle(-slotIndex * 60);
+      updateComponentHintBySlot(COMPONENT_WHEEL_SLOTS[slotIndex]);
+    }
+
+    state.showFloatingTitle = false;
+    state.backdropTransitioning = true;
+    renderMain();
+
+    if (toFocusMode) {
+      window.requestAnimationFrame(function () {
+        updateWheelAnchorFromBackdrop();
+        syncCultureExhibit();
+      });
+    }
+
+    if (state.backdropTransitionTimer) {
+      window.clearTimeout(state.backdropTransitionTimer);
+    }
+    startBackdropReveal(FLOOD_DURATION_MS);
+
+    syncViewModeUrl(toFocusMode ? VIEW_MODE_INDEX : normalizedMode, usePushState);
+  }
+
+  function applyThemeToggle() {
+    state.theme = state.theme === 'dark' ? 'light' : 'dark';
+    focusFlowRuntime.seededTheme = '';
+    focusFlowRuntime.particles = [];
+    focusFlowRuntime.streams = [];
+    focusFlowRuntime.bits = [];
+    exhibitRuntime.slides = [];
+    exhibitRuntime.particles = [];
+    exhibitRuntime.loadToken += 1;
+    hideWheelInstant();
+    if (state.hideUiForBackdrop) {
+      state.wheelAnchorLock = null;
+      state.wheelAnchorLockUntil = 0;
+      state.anchorEntryGuardUntil = Date.now() + 2200;
+    }
+    startAnchorFreeze(true);
+    state.showFloatingTitle = false;
+    state.backdropTransitioning = true;
+    updateWheelAnchorFromBackdrop(true);
+    renderMain();
+    if (state.hideUiForBackdrop) {
+      window.requestAnimationFrame(function () {
+        syncCultureExhibit();
+      });
+    }
+    if (state.backdropTransitionTimer) {
+      window.clearTimeout(state.backdropTransitionTimer);
+    }
+    startBackdropReveal(FLOOD_DURATION_MS);
+  }
+
   function snapComponentWheelToNearest() {
     var snappedIndex = getWheelIndexByAngle(state.componentWheelAngle);
     var targetAngle = normalizeWheelAngle(-snappedIndex * 60);
@@ -2135,19 +2716,7 @@
       return;
     }
     if (activeSlot.available && activeSlot.key === 'damage-lab') {
-      state.backdropExpanded = false;
-      state.hideUiForBackdrop = false;
-      state.wheelAnchorLock = null;
-      state.wheelAnchorLockUntil = 0;
-      state.showFloatingTitle = true;
-      state.backdropTransitioning = true;
-      renderMain();
-      if (state.backdropTransitionTimer) {
-        window.clearTimeout(state.backdropTransitionTimer);
-      }
-      state.backdropTransitionTimer = window.setTimeout(function () {
-        startBackdropReveal();
-      }, FLOOD_DURATION_MS);
+      applyBackdropViewMode(activeSlot.key, true);
       return;
     }
     updateComponentHintBySlot(activeSlot);
@@ -2179,6 +2748,7 @@
     if (componentNameNode) {
       componentNameNode.textContent = getComponentDisplayNameBySlot(getActiveWheelSlot());
     }
+    syncQuickSidebarUi();
   }
 
   function updateWheelHoverFx(event) {
@@ -2319,7 +2889,6 @@
 
     var attackerTracks = ensureArray(page.attackerTimelineTracks);
     var targetTracks = ensureArray(page.targetTimelineTracks);
-    var logoSrc = state.theme === 'dark' ? THEME_ASSETS.darkLogo : THEME_ASSETS.lightLogo;
     var heroCardClass = state.hideUiForBackdrop ? 'hero-card hero-card-focus' : 'hero-card';
     var columnsClass = state.hideUiForBackdrop ? 'lab-columns lab-columns-hidden' : 'lab-columns';
     var collapseBridgeClass = 'collapse-bridge collapse-bridge-visible';
@@ -2327,9 +2896,13 @@
       ? ''
       : '<view class="collapse-bridge-btn theme-switch" data-action="toggle-backdrop">返回主界面</view>';
     var wheelClass = state.hideUiForBackdrop ? 'component-revolver component-revolver-visible' : 'component-revolver';
+    var triggerClass = state.hideUiForBackdrop && !state.wheelExpanded && !state.wheelAssembling
+      ? 'wheel-trigger-node'
+      : 'wheel-trigger-node wheel-trigger-node-hidden';
     var exhibitClass = state.hideUiForBackdrop ? 'culture-exhibit-zone culture-exhibit-zone-visible' : 'culture-exhibit-zone';
     var exhibitSelectorClass = state.hideUiForBackdrop ? 'exhibit-selector exhibit-selector-visible' : 'exhibit-selector';
     var flowCanvasClass = state.hideUiForBackdrop ? 'focus-flow-canvas focus-flow-canvas-visible' : 'focus-flow-canvas';
+    var cultureToggleText = state.cultureShowcaseCollapsed ? '展开' : '折叠';
     var currentComponentDisplayName = getComponentDisplayNameBySlot(getActiveWheelSlot());
     var currentComponentEffect = getComponentEffectTextBySlot(getActiveWheelSlot());
     var currentComponentDetail = getComponentDetailTextBySlot(getActiveWheelSlot());
@@ -2345,7 +2918,6 @@
       + '<view class="' + heroCardClass + '">'
       + '<view class="hero-top">'
       + '<view class="hero-brand">'
-      + '<img id="heroLogo" class="hero-logo" src="' + escapeHtml(logoSrc) + '" alt="ARTINX" />'
       + '<view class="hero-texts">'
       + '<text class="hero-copy"></text>'
       + '</view>'
@@ -2357,17 +2929,21 @@
       + '<text class="hero-component-kicker">分界面</text>'
       + '<text id="currentComponentName" class="hero-component-name">' + escapeHtml(currentComponentDisplayName) + '</text>'
       + '<view class="team-culture-showcase">'
+      + '<view class="team-culture-head">'
       + '<text class="team-culture-kicker">TEAM CULTURE</text>'
+      + '<button type="button" class="team-culture-toggle" data-action="toggle-culture-showcase">' + cultureToggleText + '</button>'
+      + '</view>'
       + '<text class="team-culture-copy">战队文创展示区（预留）</text>'
       + '</view>'
       + '</view>'
       + '</view>'
       + '</view>'
+      + '<button type="button" class="' + triggerClass + '" data-action="wheel-trigger">点击选择组件</button>'
       + '<view class="' + collapseBridgeClass + '">' + collapseButtonMarkup + '</view>'
       + '<view class="' + wheelClass + '">'
       + '<view class="revolver-module-panel">'
       + '<text class="revolver-module-kicker">组件</text>'
-      + '<text id="componentWheelCurrentName" class="revolver-module-current">' + escapeHtml(currentComponentDisplayName) + '</text>'
+      + '<text id="componentWheelCurrentName" class="revolver-module-current" data-action="wheel-enter">' + escapeHtml(currentComponentDisplayName) + '</text>'
       + '<text id="componentWheelHint" class="revolver-module-text">' + escapeHtml(currentComponentEffect) + '</text>'
       + '<text id="componentWheelDetail" class="revolver-module-detail">' + escapeHtml(currentComponentDetail) + '</text>'
       + '</view>'
@@ -2376,7 +2952,6 @@
       + '<view id="componentWheelRotator" class="revolver-rotator" data-wheel-drag="true">'
       + buildWheelSlotsHtml()
       + '</view>'
-      + '<view class="revolver-center" data-action="wheel-enter"><text class="revolver-center-text">选择组件</text></view>'
       + '</view>'
       + '</view>'
       + '</view>'
@@ -2638,13 +3213,17 @@
     if (exhibitDragNode && state.hideUiForBackdrop && event.button === 0) {
       stopExhibitSelectorMotion();
       exhibitRuntime.selectorDragging = true;
+      if (!Number.isFinite(exhibitRuntime.selectorOffsetPx)) {
+        alignExhibitSelectorToSlide();
+      }
+      var startOffset = Number.isFinite(exhibitRuntime.selectorOffsetPx) ? exhibitRuntime.selectorOffsetPx : 0;
       var now = Date.now();
       state.exhibitDrag = {
         pointerId: event.pointerId,
         handleNode: exhibitDragNode,
         startX: event.clientX,
         lastX: event.clientX,
-        startOffset: exhibitRuntime.selectorOffsetPx,
+        startOffset: startOffset,
         lastTs: now,
         velocityPx: 0,
         travelPx: 0,
@@ -2728,6 +3307,8 @@
 
   function handlePointerMove(event) {
     updateWheelHoverFx(event);
+    updateWheelTriggerProximity(event.clientX, event.clientY);
+    updateWheelDistanceFade(event.clientX, event.clientY);
 
     if (state.exhibitDrag) {
       var dragState = state.exhibitDrag;
@@ -2864,28 +3445,7 @@
     var action = actionNode.getAttribute('data-action');
 
     if (action === 'toggle-theme') {
-      state.theme = state.theme === 'dark' ? 'light' : 'dark';
-      focusFlowRuntime.seededTheme = '';
-      focusFlowRuntime.particles = [];
-      focusFlowRuntime.streams = [];
-      focusFlowRuntime.bits = [];
-      exhibitRuntime.slides = [];
-      exhibitRuntime.particles = [];
-      exhibitRuntime.loadToken += 1;
-      state.showFloatingTitle = false;
-      state.backdropTransitioning = true;
-      renderMain();
-      if (state.hideUiForBackdrop) {
-        window.requestAnimationFrame(function () {
-          syncCultureExhibit();
-        });
-      }
-      if (state.backdropTransitionTimer) {
-        window.clearTimeout(state.backdropTransitionTimer);
-      }
-      state.backdropTransitionTimer = window.setTimeout(function () {
-        startBackdropReveal();
-      }, FLOOD_DURATION_MS);
+      applyThemeToggle();
       return;
     }
 
@@ -2925,44 +3485,24 @@
     }
 
     if (action === 'toggle-backdrop') {
-      var nextCollapsed = !state.hideUiForBackdrop;
-      if (nextCollapsed) {
-        updateWheelAnchorFromBackdrop();
-        state.wheelAnchorLock = {
-          x: appRoot.style.getPropertyValue('--wheel-anchor-x') || '50%',
-          y: appRoot.style.getPropertyValue('--wheel-anchor-y') || '50%',
-          left: appRoot.style.getPropertyValue('--wheel-anchor-left') || '50%',
-          top: appRoot.style.getPropertyValue('--wheel-anchor-top') || '50%',
-          scale: appRoot.style.getPropertyValue('--wheel-scale') || '1',
-        };
-        state.wheelAnchorLockUntil = Date.now() + 760;
+      var nextMode = state.hideUiForBackdrop
+        ? (getActiveWheelSlot() && getActiveWheelSlot().key) || 'damage-lab'
+        : VIEW_MODE_INDEX;
+      applyBackdropViewMode(nextMode, true);
+      return;
+    }
+
+    if (action === 'quick-wheel-slot') {
+      var quickIndex = toNumber(actionNode.getAttribute('data-wheel-index'), -1);
+      if (quickIndex < 0 || quickIndex >= COMPONENT_WHEEL_SLOTS.length) {
+        return;
       }
-      state.backdropExpanded = nextCollapsed;
-      state.hideUiForBackdrop = nextCollapsed;
-      if (!nextCollapsed) {
-        state.wheelAnchorLock = null;
-        state.wheelAnchorLockUntil = 0;
-        state.componentWheelIndex = 0;
-        state.componentWheelAngle = 0;
-        updateComponentHintBySlot(COMPONENT_WHEEL_SLOTS[0]);
-      }
-      state.showFloatingTitle = false;
-      state.backdropTransitioning = true;
-      renderMain();
-      if (nextCollapsed) {
-        window.requestAnimationFrame(function () {
-          updateWheelAnchorFromBackdrop();
-          syncCultureExhibit();
-        });
-      }
-      if (state.backdropTransitionTimer) {
-        window.clearTimeout(state.backdropTransitionTimer);
-      }
-      state.backdropTransitionTimer = window.setTimeout(function () {
-        state.wheelAnchorLock = null;
-        state.wheelAnchorLockUntil = 0;
-        startBackdropReveal();
-      }, FLOOD_DURATION_MS);
+      animateWheelToIndex(quickIndex, function () {
+        var slot = COMPONENT_WHEEL_SLOTS[quickIndex];
+        if (state.hideUiForBackdrop && slot && slot.available) {
+          activateCurrentComponent();
+        }
+      });
       return;
     }
 
@@ -2982,6 +3522,18 @@
 
     if (action === 'wheel-enter') {
       activateCurrentComponent();
+      return;
+    }
+
+    if (action === 'wheel-trigger') {
+      beginWheelAssembly();
+      return;
+    }
+
+    if (action === 'toggle-culture-showcase') {
+      state.cultureShowcaseCollapsed = !state.cultureShowcaseCollapsed;
+      renderMain();
+      applyShellChrome();
       return;
     }
 
@@ -3089,29 +3641,24 @@
     }
     var action = actionNode.getAttribute('data-action');
     if (action === 'toggle-theme') {
-      state.theme = state.theme === 'dark' ? 'light' : 'dark';
-      focusFlowRuntime.seededTheme = '';
-      focusFlowRuntime.particles = [];
-      focusFlowRuntime.streams = [];
-      focusFlowRuntime.bits = [];
-      exhibitRuntime.slides = [];
-      exhibitRuntime.particles = [];
-      exhibitRuntime.loadToken += 1;
-      state.showFloatingTitle = false;
-      state.backdropTransitioning = true;
-      renderMain();
-      if (state.hideUiForBackdrop) {
-        window.requestAnimationFrame(function () {
-          syncCultureExhibit();
-        });
+      applyThemeToggle();
+      return;
+    }
+    if (action === 'quick-home') {
+      applyBackdropViewMode(VIEW_MODE_INDEX, true);
+      return;
+    }
+    if (action === 'quick-wheel-slot') {
+      var quickIndex = toNumber(actionNode.getAttribute('data-wheel-index'), -1);
+      if (quickIndex < 0 || quickIndex >= COMPONENT_WHEEL_SLOTS.length) {
+        return;
       }
-      if (state.backdropTransitionTimer) {
-        window.clearTimeout(state.backdropTransitionTimer);
-      }
-      state.backdropTransitionTimer = window.setTimeout(function () {
-        state.backdropTransitioning = false;
-        startBackdropReveal();
-      }, 620);
+      animateWheelToIndex(quickIndex, function () {
+        var slot = COMPONENT_WHEEL_SLOTS[quickIndex];
+        if (state.hideUiForBackdrop && slot && slot.available) {
+          activateCurrentComponent();
+        }
+      });
     }
   });
   window.addEventListener('pointermove', handlePointerMove);
@@ -3119,11 +3666,16 @@
   window.addEventListener('mousemove', function (event) {
     state.mouseX = event.clientX;
     state.mouseY = event.clientY;
+    updateWheelTriggerProximity(event.clientX, event.clientY);
     scheduleFloatingTitleObstructionCheck();
   }, { passive: true });
   window.addEventListener('resize', function () {
     applyShellChrome();
     renderCharts();
+    updateWheelFlyOffsetVars();
+    if (Number.isFinite(state.mouseX) && Number.isFinite(state.mouseY)) {
+      updateWheelTriggerProximity(state.mouseX, state.mouseY);
+    }
     if (state.hideUiForBackdrop) {
       syncCultureExhibit();
     }
@@ -3140,7 +3692,27 @@
 
     state.form = clone(initialPage.form || window.DEFAULT_FORM || {});
     state.page = initialPage;
+    var initialViewMode = getViewModeFromUrl();
+    state.hideUiForBackdrop = initialViewMode === VIEW_MODE_INDEX;
+    state.backdropExpanded = state.hideUiForBackdrop;
+    if (!state.hideUiForBackdrop) {
+      var initialSlotIndex = findWheelSlotIndexByKey(initialViewMode);
+      if (initialSlotIndex >= 0) {
+        state.componentWheelIndex = initialSlotIndex;
+        state.componentWheelAngle = normalizeWheelAngle(-initialSlotIndex * 60);
+        updateComponentHintBySlot(COMPONENT_WHEEL_SLOTS[initialSlotIndex]);
+      }
+    } else {
+      state.wheelAnchorLock = null;
+      state.wheelAnchorLockUntil = 0;
+      state.anchorEntryGuardUntil = Date.now() + 2600;
+    }
+    hideWheelInstant();
+    updateWheelAnchorFromBackdrop(true);
+    startAnchorFreeze(true);
+    updateWheelFlyOffsetVars();
     renderMain();
+    syncViewModeUrl(state.hideUiForBackdrop ? VIEW_MODE_INDEX : ((getActiveWheelSlot() && getActiveWheelSlot().key) || 'damage-lab'), false);
     applyShellChrome();
   }
 
