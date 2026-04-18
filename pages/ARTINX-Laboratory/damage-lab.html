@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Damage Lab</title>
+    <link rel="icon" type="image/png" href="../../assets/ARTINX-Laboratory/WhiteLogo.png" />
+    <link rel="stylesheet" href="ARTINX-Laboratory.css" />
+</head>
+
+<body>
+    <script>
+        (function () {
+            var params = new URLSearchParams(window.location.search || '');
+            if (params.get('view') !== 'damage-lab') {
+                params.set('view', 'damage-lab');
+                var nextQuery = params.toString();
+                var nextUrl = window.location.pathname + (nextQuery ? '?' + nextQuery : '') + (window.location.hash || '');
+                window.history.replaceState(null, '', nextUrl);
+            }
+        })();
+    </script>
+
+    <view id="app" class="page-shell theme-dark backdrop-collapsed standalone-damage-page">
+        <view class="damage-standalone-topbar">
+            <a class="damage-standalone-back" href="ARTINX-Laboratory.html?view=tools">返回 TOOLS</a>
+        </view>
+        <view class="page-backdrop-art">
+            <video id="backdropVideo" class="page-backdrop-art-image" autoplay muted loop playsinline preload="auto"
+                src="../../assets/ARTINX-Laboratory/Dark1.mp4"></video>
+            <view class="page-backdrop-art-blend"></view>
+        </view>
+        <view class="page-backdrop-shade"></view>
+        <view id="pageFrost" class="page-content-frost page-content-frost-dark"></view>
+        <view class="page-glow glow-left"></view>
+        <view class="page-glow glow-right"></view>
+        <view class="page-glow glow-bottom"></view>
+        <view id="floatingStageTitle" class="floating-stage-title" data-layout-key="floating">
+            <view class="floating-stage-panel">
+                <text class="floating-stage-copy">大&nbsp;道&nbsp;至&nbsp;简&nbsp;&nbsp;匠&nbsp;心&nbsp;至&nbsp;臻</text>
+                <view id="floatingThemeSwitch" class="theme-switch floating-theme-switch" data-action="toggle-theme">霓虹
+                </view>
+            </view>
+        </view>
+        <view id="appContent" class="page-content"></view>
+    </view>
+
+    <script src="lib/damage-lab-core.js"></script>
+    <script src="lib/damage-lab-chart.js"></script>
+    <script src="ARTINX-Laboratory.js"></script>
+</body>
+
+</html>

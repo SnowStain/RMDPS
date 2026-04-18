@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ARTINX Laboratory</title>
+    <link rel="icon" type="image/png" href="../../assets/ARTINX-Laboratory/WhiteLogo.png" />
+    <link rel="stylesheet" href="ARTINX-Laboratory.css" />
+</head>
+
+<body>
+    <view id="app" class="page-shell theme-dark focus-mode backdrop-expanded">
+        <view id="quickSidebar" class="quick-sidebar">
+            <view class="quick-sidebar-top">
+                <img id="quickSidebarLogo" class="quick-sidebar-logo" src="../../assets/ARTINX-Laboratory/WhiteLogo.png"
+                    alt="ARTINX" />
+                <text class="quick-sidebar-brand">ARTINX Laboratory</text>
+            </view>
+            <view id="quickSidebarList" class="quick-sidebar-list"></view>
+            <view class="quick-sidebar-gradient"></view>
+        </view>
+        <view class="top-ribbon-brand" aria-hidden="true">
+            <text class="top-ribbon-brand-title">ARTINX Laboratory</text>
+            <text class="top-ribbon-brand-sub">南方科技大学 × RoboMaster</text>
+        </view>
+        <view class="page-flood-loader" aria-hidden="true">
+            <view class="loader">
+                <view class="cell d-0"></view>
+                <view class="cell d-1"></view>
+                <view class="cell d-2"></view>
+                <view class="cell d-1"></view>
+                <view class="cell d-2"></view>
+                <view class="cell d-2"></view>
+                <view class="cell d-3"></view>
+                <view class="cell d-3"></view>
+                <view class="cell d-4"></view>
+            </view>
+        </view>
+        <view class="wheel-backdrop-mask"></view>
+        <view id="globalLoadingOverlay" class="global-loading-overlay" aria-hidden="true">
+            <view class="global-loading-bg"></view>
+            <view class="global-loading-center">
+                <img class="global-loading-mark" src="../../assets/ARTINX-Laboratory/WhiteLogo.png" alt="ARTINX" />
+            </view>
+            <view class="global-loading-panel">
+                <text class="global-loading-copy">© ARTINX</text>
+                <view class="global-loading-track-shell">
+                    <view class="global-loading-track">
+                        <view id="globalLoadingProgress" class="global-loading-progress"></view>
+                    </view>
+                    <text id="globalLoadingLabel" class="global-loading-label">LOADING INDEX</text>
+                </view>
+                <text id="globalLoadingPercent" class="global-loading-percent">00%</text>
+            </view>
+        </view>
+        <view class="global-bottom-flow"></view>
+        <view class="page-backdrop-art">
+            <video id="backdropVideo" class="page-backdrop-art-image" autoplay muted loop playsinline preload="auto"
+                src="../../assets/ARTINX-Laboratory/Dark1.mp4"></video>
+            <view class="page-backdrop-art-blend"></view>
+        </view>
+        <view class="page-backdrop-art-grid"></view>
+        <view class="page-backdrop-shade"></view>
+        <view id="pageFrost" class="page-content-frost page-content-frost-dark"></view>
+        <view class="page-grid"></view>
+        <view class="page-glow glow-left"></view>
+        <view class="page-glow glow-right"></view>
+        <view class="page-glow glow-bottom"></view>
+        <view class="page-orbit orbit-one"></view>
+        <view class="page-orbit orbit-two"></view>
+        <view id="floatingStageTitle" class="floating-stage-title" data-layout-key="floating">
+            <view class="floating-stage-panel">
+                <text class="floating-stage-copy">大&nbsp;道&nbsp;至&nbsp;简&nbsp;&nbsp;匠&nbsp;心&nbsp;至&nbsp;臻</text>
+                <view id="floatingThemeSwitch" class="theme-switch floating-theme-switch" data-action="toggle-theme">霓虹
+                </view>
+            </view>
+        </view>
+        <view id="appContent" class="page-content"></view>
+    </view>
+
+    <script src="lib/damage-lab-core.js"></script>
+    <script src="lib/damage-lab-chart.js"></script>
+    <script src="ARTINX-Laboratory.js"></script>
+</body>
+
+</html>

@@ -10,6 +10,7 @@ const MIME_TYPES = {
   '.css': 'text/css; charset=utf-8',
   '.js': 'application/javascript; charset=utf-8',
   '.json': 'application/json',
+  '.mp4': 'video/mp4',
   '.png': 'image/png',
   '.jpg': 'image/jpeg',
   '.jpeg': 'image/jpeg',
@@ -21,8 +22,26 @@ const MIME_TYPES = {
 
 const server = http.createServer((req, res) => {
   const requestPath = String((req.url || '/').split('?')[0] || '/');
+  let decodedPath = '/';
+  try {
+    decodedPath = decodeURIComponent(requestPath);
+  } catch (error) {
+    res.writeHead(400);
+    res.end('Bad request');
+    return;
+  }
 
-  let filePath = path.join(ROOT_DIR, requestPath === '/' ? 'pages/ARTINX-Calculate-Lab/ARTINX-Calculate-Lab.html' : requestPath);
+  const relativePath = decodedPath === '/'
+    ? 'pages/ARTINX-Laboratory/ARTINX-Laboratory.html'
+    : decodedPath.replace(/^[/\\]+/, '');
+  const normalizedPath = path.normalize(relativePath);
+  if (normalizedPath.startsWith('..') || path.isAbsolute(normalizedPath)) {
+    res.writeHead(403);
+    res.end('Forbidden');
+    return;
+  }
+
+  let filePath = path.join(ROOT_DIR, normalizedPath);
   
   const ext = path.extname(filePath).toLowerCase();
   const contentType = MIME_TYPES[ext] || 'application/octet-stream';
