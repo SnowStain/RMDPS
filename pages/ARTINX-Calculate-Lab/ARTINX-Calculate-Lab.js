@@ -31,9 +31,6 @@
     componentWheelAngle: 0,
     componentWheelIndex: 0,
     componentHint: '逐发 诊断出伤 + 曲线分析',
-    wheelScaleBase: null,
-    wheelAnchorLock: null,
-    wheelAnchorLockUntil: 0,
     anchorReady: false,
     anchorFreezePending: false,
     anchorFreezeRaf: 0,
@@ -43,7 +40,6 @@
     anchorRebuild: false,
     anchorRebuildTimer: 0,
     anchorSnapshot: null,
-    anchorEntryGuardUntil: 0,
     wheelExpanded: false,
     wheelAssembling: false,
     wheelDissolving: false,
@@ -61,6 +57,16 @@
     mouseX: null,
     mouseY: null,
     floatingCheckRaf: 0,
+    cultureSyncRaf: 0,
+    wheelUiRaf: 0,
+    layoutVarsSignature: '',
+    layout: {
+      wheel: { x: 50, y: 62 },
+      exhibit: { x: 25, y: 45 },
+      flow: { x: 25, y: 45 },
+      bridge: { x: 50, y: 75 },
+      floating: { x: 88, y: 92 },
+    },
   };
 
   var EXHIBIT_IMAGE_SOURCES = [
@@ -79,14 +85,22 @@
 
   ];
 
-  var EXHIBIT_ROTATE_INTERVAL_MS = 4000;
-  var FLOOD_DURATION_MS = 1000;
+  var EXHIBIT_IMAGE_CACHE = Object.create(null);
+
+  var EXHIBIT_ROTATE_INTERVAL_MS = 2600;
+  var FLOOD_DURATION_MS = 320;
   var VIEW_MODE_QUERY_KEY = 'view';
   var VIEW_MODE_INDEX = 'index';
-  var EXHIBIT_INTERACT_RADIUS = 132;
+  var EXHIBIT_INTERACT_RADIUS = 200;
   var EXHIBIT_INTERACT_RADIUS_SQ = EXHIBIT_INTERACT_RADIUS * EXHIBIT_INTERACT_RADIUS;
-  var EXHIBIT_GLOW_RADIUS = 146;
+  var EXHIBIT_GLOW_RADIUS = 200;
   var EXHIBIT_GLOW_RADIUS_SQ = EXHIBIT_GLOW_RADIUS * EXHIBIT_GLOW_RADIUS;
+  var EXHIBIT_POINTER_ACTIVE_RADIUS_RATIO = 0.46;
+  var EXHIBIT_POINTER_ACTIVE_RADIUS_MIN = 84;
+  var EXHIBIT_ORBITER_MIN = 6;
+  var EXHIBIT_ORBITER_MAX = 12;
+  var ANCHOR_STABLE_FRAMES_REQUIRED = 3;
+  var ANCHOR_FREEZE_MAX_FRAMES = 24;
 
   var exhibitRuntime = {
     inited: false,
@@ -101,6 +115,7 @@
     mouseX: -9999,
     mouseY: -9999,
     particles: [],
+    orbiters: [],
     slides: [],
     slideIndex: 0,
     moveHandler: null,
@@ -128,6 +143,11 @@
     streams: [],
     bits: [],
     seededTheme: '',
+  };
+
+  var themeGradientRuntime = {
+    theme: '',
+    entries: [],
   };
 
   var COMPONENT_WHEEL_SLOTS = [
@@ -194,9 +214,12 @@
     lightBackdropVideo: '../../assets/ARTINX-Calculate-Lab/White1.mp4',
   };
 
-  var THEME_HAND_ANCHORS = {
-    dark: { x: 0.12, y: 0.57 },
-    light: { x: 0.12, y: 0.58 },
+  var DEFAULT_LAYOUT = {
+    wheel: { x: 50, y: 62 },
+    exhibit: { x: 25, y: 45 },
+    flow: { x: 25, y: 45 },
+    bridge: { x: 50, y: 75 },
+    floating: { x: 88, y: 92 },
   };
 
   var NUMERIC_FIELDS = new Set([
@@ -742,13 +765,91 @@
     });
   }
 
+  function scheduleCultureExhibitSync() {
+    if (state.cultureSyncRaf) {
+      return;
+    }
+    state.cultureSyncRaf = window.requestAnimationFrame(function () {
+      state.cultureSyncRaf = 0;
+      if (state.hideUiForBackdrop) {
+        syncCultureExhibit();
+        syncExhibitSelectorUi();
+        return;
+      }
+      teardownCultureExhibit();
+    });
+  }
+
   function clamp(value, min, max) {
     return Math.max(min, Math.min(max, value));
   }
 
+  function normalizeLayoutPoint(point, fallback) {
+    var source = point && typeof point === 'object' ? point : {};
+    var base = fallback && typeof fallback === 'object' ? fallback : { x: 50, y: 50 };
+    return {
+      x: clamp(toNumber(source.x, base.x), 4, 96),
+      y: clamp(toNumber(source.y, base.y), 4, 96),
+    };
+  }
+
+  function normalizeLayoutConfig(layout) {
+    var source = layout && typeof layout === 'object' ? layout : {};
+    return {
+      wheel: normalizeLayoutPoint(source.wheel, DEFAULT_LAYOUT.wheel),
+      exhibit: normalizeLayoutPoint(source.exhibit, DEFAULT_LAYOUT.exhibit),
+      flow: normalizeLayoutPoint(source.flow, DEFAULT_LAYOUT.flow),
+      bridge: normalizeLayoutPoint(source.bridge, DEFAULT_LAYOUT.bridge),
+      floating: normalizeLayoutPoint(source.floating, DEFAULT_LAYOUT.floating),
+    };
+  }
+
+  function applyLayoutVars(forceWrite) {
+    var layout = normalizeLayoutConfig(state.layout);
+    state.layout = layout;
+    var wheelX = layout.wheel.x.toFixed(3) + '%';
+    var wheelY = layout.wheel.y.toFixed(3) + '%';
+    var exhibitX = layout.exhibit.x.toFixed(3) + '%';
+    var exhibitY = layout.exhibit.y.toFixed(3) + '%';
+    var flowX = layout.flow.x.toFixed(3) + '%';
+    var flowY = layout.flow.y.toFixed(3) + '%';
+    var bridgeX = layout.bridge.x.toFixed(3) + '%';
+    var bridgeY = layout.bridge.y.toFixed(3) + '%';
+    var floatingX = layout.floating.x.toFixed(3) + '%';
+    var floatingY = layout.floating.y.toFixed(3) + '%';
+
+    var signature = [wheelX, wheelY, exhibitX, exhibitY, flowX, flowY, bridgeX, bridgeY, floatingX, floatingY].join('|');
+    if (!forceWrite && signature === state.layoutVarsSignature) {
+      return;
+    }
+    state.layoutVarsSignature = signature;
+
+    appRoot.style.setProperty('--layout-wheel-x', wheelX);
+    appRoot.style.setProperty('--layout-wheel-y', wheelY);
+    appRoot.style.setProperty('--layout-exhibit-x', exhibitX);
+    appRoot.style.setProperty('--layout-exhibit-y', exhibitY);
+    appRoot.style.setProperty('--layout-flow-x', flowX);
+    appRoot.style.setProperty('--layout-flow-y', flowY);
+    appRoot.style.setProperty('--layout-bridge-x', bridgeX);
+    appRoot.style.setProperty('--layout-bridge-y', bridgeY);
+    appRoot.style.setProperty('--layout-floating-x', floatingX);
+    appRoot.style.setProperty('--layout-floating-y', floatingY);
+
+    appRoot.style.setProperty('--wheel-anchor-x', wheelX);
+    appRoot.style.setProperty('--wheel-anchor-y', wheelY);
+    appRoot.style.setProperty('--wheel-anchor-left', wheelX);
+    appRoot.style.setProperty('--wheel-anchor-top', wheelY);
+    appRoot.style.setProperty('--video-center-left', wheelX);
+    appRoot.style.setProperty('--video-center-top', wheelY);
+  }
+
+  function getLayoutPoint(key) {
+    var layout = normalizeLayoutConfig(state.layout);
+    return layout[key] || { x: 50, y: 50 };
+  }
+
   function getWheelScaleValue() {
-    var scale = toNumber(appRoot.style.getPropertyValue('--wheel-scale'), 1);
-    return Number.isFinite(scale) && scale > 0 ? scale : 1;
+    return 1;
   }
 
   function clearWheelTimers() {
@@ -784,8 +885,9 @@
       setWheelTriggerNearby(false);
       return;
     }
-    var triggerX = (window.innerWidth || 0) * 0.55;
-    var triggerY = (window.innerHeight || 0) * 0.55;
+    var wheelPoint = getLayoutPoint('wheel');
+    var triggerX = (window.innerWidth || 0) * (wheelPoint.x / 100);
+    var triggerY = (window.innerHeight || 0) * (wheelPoint.y / 100);
     var dx = clientX - triggerX;
     var dy = clientY - triggerY;
     var dist = Math.sqrt(dx * dx + dy * dy);
@@ -827,10 +929,11 @@
   }
 
   function updateWheelFlyOffsetVars() {
-    var triggerX = (window.innerWidth || 0) * 0.55;
-    var triggerY = (window.innerHeight || 0) * 0.55;
-    var targetX = (window.innerWidth || 0) * 0.5;
-    var targetY = (window.innerHeight || 0) * 0.62;
+    var wheelPoint = getLayoutPoint('wheel');
+    var triggerX = (window.innerWidth || 0) * (wheelPoint.x / 100);
+    var triggerY = (window.innerHeight || 0) * (wheelPoint.y / 100);
+    var targetX = triggerX;
+    var targetY = triggerY;
     appRoot.style.setProperty('--wheel-fly-dx', (triggerX - targetX).toFixed(2) + 'px');
     appRoot.style.setProperty('--wheel-fly-dy', (triggerY - targetY).toFixed(2) + 'px');
     appRoot.style.setProperty('--wheel-trigger-left', triggerX.toFixed(2) + 'px');
@@ -913,218 +1016,98 @@
     }
   }
 
-  function triggerAnchorRebuild() {
-    if (Date.now() < state.anchorEntryGuardUntil) {
-      return;
+  function collectAnchorMetricsSignature() {
+    if (!state.hideUiForBackdrop) {
+      return '';
     }
-    if (state.anchorRebuildTimer) {
-      return;
+    var probes = ['.component-revolver', '.focus-flow-canvas', '.collapse-bridge', '.hero-component-indicator'];
+    var parts = [];
+    for (var i = 0; i < probes.length; i += 1) {
+      var node = document.querySelector(probes[i]);
+      if (!node) {
+        continue;
+      }
+      var style = window.getComputedStyle(node);
+      if (style.display === 'none' || style.visibility === 'hidden') {
+        continue;
+      }
+      var rect = node.getBoundingClientRect();
+      if (rect.width < 1 || rect.height < 1) {
+        continue;
+      }
+      parts.push([
+        probes[i],
+        rect.left.toFixed(2),
+        rect.top.toFixed(2),
+        rect.width.toFixed(2),
+        rect.height.toFixed(2),
+      ].join(':'));
     }
-    state.anchorRebuild = true;
-    applyShellChrome();
-    state.anchorRebuildTimer = window.setTimeout(function () {
-      state.anchorRebuildTimer = 0;
-      state.anchorRebuild = false;
-      startAnchorFreeze(false);
-      triggerMotionParticleTransition(500);
-    }, 100);
+    return parts.join('|');
   }
 
   function startAnchorFreeze(resetScaleBase) {
-    state.anchorReady = false;
+    if (!state.hideUiForBackdrop) {
+      state.anchorSnapshot = null;
+      state.anchorLastMetrics = null;
+      state.anchorFreezePending = false;
+      state.anchorReady = true;
+      if (state.anchorFreezeRaf) {
+        window.cancelAnimationFrame(state.anchorFreezeRaf);
+        state.anchorFreezeRaf = 0;
+      }
+      updateWheelAnchorFromBackdrop(!!resetScaleBase);
+      return;
+    }
+
     state.anchorSnapshot = null;
+    state.anchorLastMetrics = '';
     state.anchorFreezePending = true;
-    state.anchorFreezeFrames = 8;
+    state.anchorReady = false;
+    state.anchorFreezeFrames = 0;
     state.anchorStableFrames = 0;
-    state.anchorLastMetrics = null;
-    appRoot.classList.remove('anchor-ready');
-    appRoot.classList.add('anchor-frozen');
-    updateWheelAnchorFromBackdrop(!!resetScaleBase);
     if (state.anchorFreezeRaf) {
       window.cancelAnimationFrame(state.anchorFreezeRaf);
       state.anchorFreezeRaf = 0;
     }
 
-    var maxFrameBudget = 120;
-    function hasRenderableBackdropMetrics() {
-      var video = document.getElementById('backdropVideo');
-      if (!video) {
-        return false;
-      }
-      var rect = video.getBoundingClientRect();
-      return rect.width > 2 && rect.height > 2 && toNumber(video.videoWidth, 0) > 0 && toNumber(video.videoHeight, 0) > 0;
-    }
+    updateWheelAnchorFromBackdrop(!!resetScaleBase);
 
-    function tick() {
-      updateWheelAnchorFromBackdrop();
-      state.anchorFreezeFrames -= 1;
-      maxFrameBudget -= 1;
-      if (state.anchorFreezeFrames <= 0 && state.anchorStableFrames >= 8 && hasRenderableBackdropMetrics()) {
+    function step() {
+      if (!state.hideUiForBackdrop) {
         state.anchorFreezePending = false;
         state.anchorReady = true;
-        state.wheelAnchorLock = {
-          x: appRoot.style.getPropertyValue('--wheel-anchor-x') || '50%',
-          y: appRoot.style.getPropertyValue('--wheel-anchor-y') || '50%',
-          left: appRoot.style.getPropertyValue('--wheel-anchor-left') || '50%',
-          top: appRoot.style.getPropertyValue('--wheel-anchor-top') || '50%',
-          scale: appRoot.style.getPropertyValue('--wheel-scale') || '1',
-        };
-        state.wheelAnchorLockUntil = Date.now() + 1600;
         state.anchorFreezeRaf = 0;
         applyShellChrome();
         return;
       }
-      if (maxFrameBudget <= 0) {
-        maxFrameBudget = 60;
-        state.anchorFreezeFrames = 4;
-        state.anchorStableFrames = 0;
-      }
-      state.anchorFreezeRaf = window.requestAnimationFrame(tick);
-    }
 
-    state.anchorFreezeRaf = window.requestAnimationFrame(tick);
-  }
+      state.anchorFreezeFrames += 1;
+      updateWheelAnchorFromBackdrop(false);
 
-  function updateWheelAnchorFromBackdrop(resetScaleBase) {
-    var anchorLocked = !resetScaleBase && !state.anchorFreezePending && state.wheelAnchorLock && Date.now() < state.wheelAnchorLockUntil;
-    function applyAnchorLock() {
-      if (!anchorLocked) {
-        return false;
-      }
-      appRoot.style.setProperty('--wheel-anchor-x', state.wheelAnchorLock.x);
-      appRoot.style.setProperty('--wheel-anchor-y', state.wheelAnchorLock.y);
-      appRoot.style.setProperty('--wheel-anchor-left', state.wheelAnchorLock.left);
-      appRoot.style.setProperty('--wheel-anchor-top', state.wheelAnchorLock.top);
-      appRoot.style.setProperty('--wheel-scale', state.wheelAnchorLock.scale);
-      return true;
-    }
-
-    function applyVideoCenterFallback() {
-      var style = window.getComputedStyle(appRoot);
-      var fallbackX = style.getPropertyValue('--wheel-anchor-x').trim() || '50%';
-      var fallbackY = style.getPropertyValue('--wheel-anchor-y').trim() || '50%';
-      appRoot.style.setProperty('--video-center-left', fallbackX);
-      appRoot.style.setProperty('--video-center-top', fallbackY);
-    }
-
-    var backdropVideo = document.getElementById('backdropVideo');
-    if (!backdropVideo) {
-      applyVideoCenterFallback();
-      if (applyAnchorLock()) {
-        return;
-      }
-      appRoot.style.setProperty('--wheel-scale', '1');
-      return;
-    }
-
-    var rect = backdropVideo.getBoundingClientRect();
-    if (rect.width < 2 || rect.height < 2) {
-      applyVideoCenterFallback();
-      if (applyAnchorLock()) {
-        return;
-      }
-      appRoot.style.setProperty('--wheel-scale', '1');
-      return;
-    }
-
-    var mediaWidth = Math.max(1, toNumber(backdropVideo.videoWidth, 1920));
-    var mediaHeight = Math.max(1, toNumber(backdropVideo.videoHeight, 1080));
-    var mediaRatio = mediaWidth / mediaHeight;
-    var boxRatio = rect.width / rect.height;
-
-    var renderedWidth;
-    var renderedHeight;
-    var offsetX;
-    var offsetY;
-
-    if (mediaRatio > boxRatio) {
-      renderedWidth = rect.width;
-      renderedHeight = rect.width / mediaRatio;
-      offsetX = 0;
-      offsetY = (rect.height - renderedHeight) / 2;
-    } else {
-      renderedHeight = rect.height;
-      renderedWidth = rect.height * mediaRatio;
-      offsetY = 0;
-      offsetX = (rect.width - renderedWidth) / 2;
-    }
-
-    var handAnchor = state.theme === 'dark' ? THEME_HAND_ANCHORS.dark : THEME_HAND_ANCHORS.light;
-    var anchorX = rect.left + offsetX + renderedWidth * handAnchor.x;
-    var anchorY = rect.top + offsetY + renderedHeight * handAnchor.y;
-    var videoLeft = rect.left + offsetX;
-    var videoTop = rect.top + offsetY;
-    var videoCenterX = videoLeft + renderedWidth * 0.5;
-    var videoCenterY = videoTop + renderedHeight * 0.5;
-
-    var viewportWidth = Math.max(1, window.innerWidth || document.documentElement.clientWidth || 1);
-    var viewportHeight = Math.max(1, window.innerHeight || document.documentElement.clientHeight || 1);
-
-    var anchorXPercent = clamp((anchorX / viewportWidth) * 100, 8, 92);
-    var anchorYPercent = clamp((anchorY / viewportHeight) * 100, 16, 92);
-
-    if (resetScaleBase || !Number.isFinite(state.wheelScaleBase) || state.wheelScaleBase <= 0) {
-      state.wheelScaleBase = renderedHeight;
-    }
-    var videoScale = renderedHeight / Math.max(1, state.wheelScaleBase);
-
-    var nextSnapshot = {
-      x: anchorX,
-      y: anchorY,
-      scale: videoScale,
-    };
-
-    var nextMetrics = {
-      left: videoLeft,
-      top: videoTop,
-      width: renderedWidth,
-      height: renderedHeight,
-      x: anchorX,
-      y: anchorY,
-      scale: videoScale,
-    };
-    if (state.anchorLastMetrics) {
-      var prevMetrics = state.anchorLastMetrics;
-      var stableRect = Math.abs(nextMetrics.left - prevMetrics.left) < 0.4
-        && Math.abs(nextMetrics.top - prevMetrics.top) < 0.4
-        && Math.abs(nextMetrics.width - prevMetrics.width) < 0.4
-        && Math.abs(nextMetrics.height - prevMetrics.height) < 0.4;
-      var stableAnchor = Math.abs(nextMetrics.x - prevMetrics.x) < 0.8
-        && Math.abs(nextMetrics.y - prevMetrics.y) < 0.8
-        && Math.abs(nextMetrics.scale - prevMetrics.scale) < 0.003;
-      if (stableRect && stableAnchor) {
+      var signature = collectAnchorMetricsSignature();
+      if (signature && signature === state.anchorLastMetrics) {
         state.anchorStableFrames += 1;
       } else {
         state.anchorStableFrames = 0;
       }
-    }
-    state.anchorLastMetrics = nextMetrics;
+      state.anchorLastMetrics = signature;
 
-    if (state.anchorReady && state.anchorSnapshot) {
-      var deltaX = Math.abs(nextSnapshot.x - state.anchorSnapshot.x);
-      var deltaY = Math.abs(nextSnapshot.y - state.anchorSnapshot.y);
-      var deltaScale = Math.abs(nextSnapshot.scale - state.anchorSnapshot.scale);
-      if (Date.now() >= state.anchorEntryGuardUntil && state.hideUiForBackdrop && (deltaX > 1.2 || deltaY > 1.2 || deltaScale > 0.005)) {
-        triggerMotionParticleTransition(420);
+      if (state.anchorStableFrames >= ANCHOR_STABLE_FRAMES_REQUIRED || state.anchorFreezeFrames >= ANCHOR_FREEZE_MAX_FRAMES) {
+        state.anchorFreezePending = false;
+        state.anchorReady = true;
+        state.anchorFreezeRaf = 0;
+        applyShellChrome();
+        return;
       }
-      if (Date.now() >= state.anchorEntryGuardUntil && (deltaX > 4.2 || deltaY > 4.2 || deltaScale > 0.02)) {
-        triggerAnchorRebuild();
-      }
-    }
-    state.anchorSnapshot = nextSnapshot;
-
-    appRoot.style.setProperty('--video-center-left', videoCenterX.toFixed(2) + 'px');
-    appRoot.style.setProperty('--video-center-top', videoCenterY.toFixed(2) + 'px');
-
-    if (applyAnchorLock()) {
-      return;
+      state.anchorFreezeRaf = window.requestAnimationFrame(step);
     }
 
-    appRoot.style.setProperty('--wheel-anchor-x', anchorXPercent.toFixed(3) + '%');
-    appRoot.style.setProperty('--wheel-anchor-y', anchorYPercent.toFixed(3) + '%');
-    appRoot.style.setProperty('--wheel-anchor-left', anchorX.toFixed(2) + 'px');
-    appRoot.style.setProperty('--wheel-anchor-top', anchorY.toFixed(2) + 'px');
-    appRoot.style.setProperty('--wheel-scale', Math.max(0.0001, videoScale).toFixed(4));
+    state.anchorFreezeRaf = window.requestAnimationFrame(step);
+  }
+
+  function updateWheelAnchorFromBackdrop(resetScaleBase) {
+    applyLayoutVars(resetScaleBase === true);
   }
 
   function teardownCultureExhibit() {
@@ -1147,6 +1130,7 @@
     exhibitRuntime.canvas = null;
     exhibitRuntime.ctx = null;
     exhibitRuntime.particles = [];
+    exhibitRuntime.orbiters = [];
     exhibitRuntime.mouseX = -9999;
     exhibitRuntime.mouseY = -9999;
     exhibitRuntime.pointerLeft = 0;
@@ -1193,22 +1177,37 @@
     };
   }
 
-  function sampleThemeGradient(t) {
-    var palette = getThemeParticlePalette();
-    var ratio = clamp(t, 0, 1);
-    var weightedRatio = Math.pow(ratio, 0.82);
-    var base;
-    if (weightedRatio <= 0.5) {
-      base = mixColor(palette.a, palette.c, weightedRatio * 2);
-    } else {
-      base = mixColor(palette.c, palette.b, (weightedRatio - 0.5) * 2);
+  function getThemeGradientLut() {
+    if (themeGradientRuntime.theme === state.theme && themeGradientRuntime.entries.length) {
+      return themeGradientRuntime.entries;
     }
-    var pulse = Math.sin(weightedRatio * Math.PI) * 24;
-    return {
-      r: Math.round(clamp(base.r + pulse * 0.24, 0, 255)),
-      g: Math.round(clamp(base.g + pulse * 0.46, 0, 255)),
-      b: Math.round(clamp(base.b + pulse * 0.36, 0, 255)),
-    };
+    var palette = getThemeParticlePalette();
+    var entries = [];
+    for (var i = 0; i <= 96; i += 1) {
+      var ratio = i / 96;
+      var weightedRatio = Math.pow(ratio, 0.82);
+      var base;
+      if (weightedRatio <= 0.5) {
+        base = mixColor(palette.a, palette.c, weightedRatio * 2);
+      } else {
+        base = mixColor(palette.c, palette.b, (weightedRatio - 0.5) * 2);
+      }
+      var pulse = Math.sin(weightedRatio * Math.PI) * 24;
+      entries.push({
+        r: Math.round(clamp(base.r + pulse * 0.24, 0, 255)),
+        g: Math.round(clamp(base.g + pulse * 0.46, 0, 255)),
+        b: Math.round(clamp(base.b + pulse * 0.36, 0, 255)),
+      });
+    }
+    themeGradientRuntime.theme = state.theme;
+    themeGradientRuntime.entries = entries;
+    return entries;
+  }
+
+  function sampleThemeGradient(t) {
+    var ratio = clamp(t, 0, 1);
+    var lut = getThemeGradientLut();
+    return lut[Math.round(ratio * (lut.length - 1))] || lut[0];
   }
 
   function getExhibitSelectorMetrics() {
@@ -1371,6 +1370,23 @@
     }
   }
 
+  function syncCultureShowcaseUi() {
+    var collapsed = !!state.cultureShowcaseCollapsed;
+    appRoot.classList.toggle('culture-showcase-collapsed', collapsed);
+    var toggleNodes = contentRoot.querySelectorAll('.team-culture-toggle[data-action="toggle-culture-showcase"]');
+    toggleNodes.forEach(function (node) {
+      node.textContent = collapsed ? '展开' : '折叠';
+    });
+  }
+
+  function setCultureShowcaseCollapsed(nextCollapsed) {
+    state.cultureShowcaseCollapsed = !!nextCollapsed;
+    syncCultureShowcaseUi();
+    if (state.hideUiForBackdrop) {
+      scheduleCultureExhibitSync();
+    }
+  }
+
   function restartExhibitTimer() {
     if (exhibitRuntime.timerId) {
       window.clearInterval(exhibitRuntime.timerId);
@@ -1480,8 +1496,8 @@
     }
     var boxW = Math.max(1, maxX - minX);
     var boxH = Math.max(1, maxY - minY);
-    var targetW = width * 0.68;
-    var targetH = height * 0.68;
+    var targetW = width * 0.77;
+    var targetH = height * 0.77;
     var scale = Math.min(targetW / boxW, targetH / boxH, 1);
     var cx = (minX + maxX) * 0.5;
     var cy = (minY + maxY) * 0.5;
@@ -1506,10 +1522,10 @@
       return [];
     }
     distances.sort(function (a, b) { return a - b; });
-    var cutoffIndex = clamp(Math.floor(distances.length * 0.992), 0, distances.length - 1);
+    var cutoffIndex = clamp(Math.floor(distances.length * 0.995), 0, distances.length - 1);
     var cutoff = distances[cutoffIndex];
-    var softLimit = Math.max(width, height) * 0.48;
-    var shouldTrim = normalized.length > 600 && cutoff > softLimit;
+    var softLimit = Math.max(width, height) * 0.47;
+    var shouldTrim = normalized.length > 520 && cutoff > softLimit;
     var limit = shouldTrim ? cutoff : distances[distances.length - 1];
     var result = normalized
       .filter(function (item) { return item.d <= limit; })
@@ -1521,7 +1537,7 @@
         };
       });
 
-    var maxPoints = clamp(Math.floor((width * height) / 410), 4800, 10400);
+    var maxPoints = clamp(Math.floor((width * height) / 700), 2600, 5200);
     if (result.length <= maxPoints) {
       return result;
     }
@@ -1532,6 +1548,49 @@
       sampled.push(result[Math.floor(si * stride)]);
     }
     return sampled;
+  }
+
+  function getCachedExhibitImage(src) {
+    var key = String(src || '');
+    if (!key) {
+      return Promise.resolve(null);
+    }
+    var cached = EXHIBIT_IMAGE_CACHE[key];
+    if (cached) {
+      if (cached.status === 'ready') {
+        return Promise.resolve(cached.image);
+      }
+      if (cached.status === 'error') {
+        return Promise.resolve(null);
+      }
+      if (cached.promise) {
+        return cached.promise;
+      }
+    }
+
+    var entry = {
+      status: 'loading',
+      image: null,
+      promise: null,
+    };
+
+    entry.promise = new Promise(function (resolve) {
+      var img = new Image();
+      img.onload = function () {
+        entry.status = 'ready';
+        entry.image = img;
+        resolve(img);
+      };
+      img.onerror = function () {
+        entry.status = 'error';
+        entry.image = null;
+        resolve(null);
+      };
+      img.src = encodeURI(key);
+    });
+
+    EXHIBIT_IMAGE_CACHE[key] = entry;
+    return entry.promise;
   }
 
   function createFlowBit(width, height, streamCount) {
@@ -1564,7 +1623,7 @@
     if (!focusFlowRuntime.width || !focusFlowRuntime.height) {
       return;
     }
-    var targetCount = Math.min(240, Math.max(120, Math.floor(focusFlowRuntime.width * focusFlowRuntime.height / 18000)));
+    var targetCount = Math.min(240, Math.max(120, Math.floor(focusFlowRuntime.width * focusFlowRuntime.height / 16500 * 0.84)));
     if (focusFlowRuntime.particles.length > targetCount) {
       focusFlowRuntime.particles = focusFlowRuntime.particles.slice(0, targetCount);
       return;
@@ -1573,7 +1632,7 @@
       focusFlowRuntime.particles.push(createFlowParticle(focusFlowRuntime.width, focusFlowRuntime.height));
     }
 
-    var streamTargetCount = Math.min(18, Math.max(9, Math.floor(focusFlowRuntime.width / 160)));
+    var streamTargetCount = Math.min(18, Math.max(9, Math.floor(focusFlowRuntime.width / 150 * 0.86)));
     if (focusFlowRuntime.streams.length > streamTargetCount) {
       focusFlowRuntime.streams = focusFlowRuntime.streams.slice(0, streamTargetCount);
     }
@@ -1581,7 +1640,7 @@
       focusFlowRuntime.streams.push(createFlowStream(focusFlowRuntime.width, focusFlowRuntime.height));
     }
 
-    var bitTargetCount = Math.min(260, Math.max(140, streamTargetCount * 12));
+    var bitTargetCount = Math.min(320, Math.max(180, Math.floor(streamTargetCount * 16 * 0.9)));
     if (focusFlowRuntime.bits.length > bitTargetCount) {
       focusFlowRuntime.bits = focusFlowRuntime.bits.slice(0, bitTargetCount);
     }
@@ -1836,7 +1895,7 @@
       return sorted[Math.floor(sorted.length / 2)];
     }
 
-    var step = Math.max(1, Math.floor(Math.min(width, height) / 180));
+    var step = Math.max(1, Math.floor(Math.min(width, height) / 220));
     var candidates = [];
     var rs = [];
     var gs = [];
@@ -1897,7 +1956,7 @@
         points.push({
           x: c.x,
           y: c.y,
-          a: clamp((c.distance + dominantDistance + c.lumaDelta) / 240, 0.16, 0.86),
+          a: clamp((c.distance + dominantDistance + c.lumaDelta) / 240, 0.2, 0.92),
         });
       }
     }
@@ -1956,6 +2015,37 @@
     syncExhibitSelectorUi();
   }
 
+  function createExhibitOrbiter(width, height) {
+    var ttl = 90 + Math.random() * 280;
+    return {
+      baseX: width * (0.46 + Math.random() * 0.08),
+      baseY: height * (0.8 + Math.random() * 0.1),
+      radiusX: 14 + Math.random() * 62,
+      radiusY: 5 + Math.random() * 18,
+      angle: Math.random() * Math.PI * 2,
+      speed: (Math.random() < 0.5 ? -1 : 1) * (0.012 + Math.random() * 0.022),
+      tilt: Math.random() * Math.PI * 2,
+      size: 1 + Math.random() * 2.4,
+      alpha: 0.14 + Math.random() * 0.26,
+      tone: Math.random(),
+      life: 0,
+      ttl: ttl,
+      ttlMax: ttl,
+      px: NaN,
+      py: NaN,
+    };
+  }
+
+  function syncExhibitOrbiters(width, height) {
+    var target = clamp(Math.floor(Math.min(width, height) / 48), EXHIBIT_ORBITER_MIN, EXHIBIT_ORBITER_MAX);
+    if (exhibitRuntime.orbiters.length > target) {
+      exhibitRuntime.orbiters = exhibitRuntime.orbiters.slice(0, target);
+    }
+    while (exhibitRuntime.orbiters.length < target) {
+      exhibitRuntime.orbiters.push(createExhibitOrbiter(width, height));
+    }
+  }
+
   function renderExhibitFrame() {
     if (!exhibitRuntime.ctx || !exhibitRuntime.canvas || !state.hideUiForBackdrop) {
       return;
@@ -1963,29 +2053,45 @@
     var ctx = exhibitRuntime.ctx;
     var width = exhibitRuntime.width;
     var height = exhibitRuntime.height;
+    var pointerX = exhibitRuntime.mouseX;
+    var pointerY = exhibitRuntime.mouseY;
+    var pointerActiveRadius = Math.max(EXHIBIT_POINTER_ACTIVE_RADIUS_MIN, Math.min(width, height) * EXHIBIT_POINTER_ACTIVE_RADIUS_RATIO);
+    var pointerActiveRadiusSq = pointerActiveRadius * pointerActiveRadius;
+    var centerX = width * 0.5;
+    var centerY = height * 0.52;
+    var pointerCenterDx = pointerX - centerX;
+    var pointerCenterDy = pointerY - centerY;
+    var pointerInteractive = Number.isFinite(pointerX)
+      && Number.isFinite(pointerY)
+      && (pointerCenterDx * pointerCenterDx + pointerCenterDy * pointerCenterDy) <= pointerActiveRadiusSq;
 
     ctx.clearRect(0, 0, width, height);
     for (var i = exhibitRuntime.particles.length - 1; i >= 0; i -= 1) {
       var p = exhibitRuntime.particles[i];
-      var dx = p.x - exhibitRuntime.mouseX;
-      var dy = p.y - exhibitRuntime.mouseY;
-      var distSq = dx * dx + dy * dy;
+      var dx = 0;
+      var dy = 0;
+      var distSq = Number.POSITIVE_INFINITY;
       var dist = -1;
+      if (pointerInteractive) {
+        dx = p.x - pointerX;
+        dy = p.y - pointerY;
+        distSq = dx * dx + dy * dy;
+      }
       if (distSq < EXHIBIT_INTERACT_RADIUS_SQ) {
         dist = Math.sqrt(Math.max(distSq, 0.0001));
-        var force = ((EXHIBIT_INTERACT_RADIUS - dist) / EXHIBIT_INTERACT_RADIUS) * 1.28;
+        var force = ((EXHIBIT_INTERACT_RADIUS - dist) / EXHIBIT_INTERACT_RADIUS) * 1.08;
         var invDist = 1 / dist;
         p.vx += dx * invDist * force;
         p.vy += dy * invDist * force;
       }
 
-      p.vx += (p.tx - p.x) * 0.062;
-      p.vy += (p.ty - p.y) * 0.062;
-      p.vx *= 0.8;
-      p.vy *= 0.8;
+      p.vx += (p.tx - p.x) * 0.064;
+      p.vy += (p.ty - p.y) * 0.064;
+      p.vx *= 0.84;
+      p.vy *= 0.84;
       p.x += p.vx;
       p.y += p.vy;
-      p.alpha += (p.ta - p.alpha) * 0.14;
+      p.alpha += (p.ta - p.alpha) * 0.17;
 
       if (!Number.isFinite(p.x) || !Number.isFinite(p.y)) {
         p.x = p.tx;
@@ -2003,16 +2109,22 @@
 
       var gradT = clamp(((p.x / Math.max(1, width)) * 0.38) + ((p.y / Math.max(1, height)) * 0.42) + ((Number.isFinite(p.tone) ? p.tone : 0.5) * 0.2), 0, 1);
       var color = sampleThemeGradient(gradT);
-      var alpha = clamp(p.alpha * 1.18, 0, 1);
+      var alpha = clamp(p.alpha * 1.26, 0, 1);
       ctx.fillStyle = 'rgba(' + color.r + ',' + color.g + ',' + color.b + ',' + alpha.toFixed(3) + ')';
       ctx.beginPath();
-      ctx.arc(p.x, p.y, 1.9, 0, Math.PI * 2);
+      ctx.arc(p.x, p.y, 1.45, 0, Math.PI * 2);
       ctx.fill();
 
-      var trailAlpha = clamp(alpha * 0.28, 0, 0.46);
+      var trailAlpha = clamp(alpha * 0.18, 0, 0.34);
       ctx.fillStyle = 'rgba(' + color.r + ',' + color.g + ',' + color.b + ',' + trailAlpha.toFixed(3) + ')';
       ctx.beginPath();
-      ctx.arc(p.x, p.y, 3.1, 0, Math.PI * 2);
+      ctx.arc(p.x, p.y, 2.2, 0, Math.PI * 2);
+      ctx.fill();
+
+      var coreAlpha = clamp(alpha * 0.78, 0, 0.94);
+      ctx.fillStyle = 'rgba(248,252,255,' + coreAlpha.toFixed(3) + ')';
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, 0.75, 0, Math.PI * 2);
       ctx.fill();
 
       if (distSq < EXHIBIT_GLOW_RADIUS_SQ) {
@@ -2025,6 +2137,55 @@
         ctx.arc(p.x, p.y, 3.4, 0, Math.PI * 2);
         ctx.fill();
       }
+    }
+
+    syncExhibitOrbiters(width, height);
+    for (var oi = exhibitRuntime.orbiters.length - 1; oi >= 0; oi -= 1) {
+      var orbiter = exhibitRuntime.orbiters[oi];
+      orbiter.life = Math.min(1, orbiter.life + 0.018);
+      orbiter.ttl -= 1;
+      orbiter.angle += orbiter.speed;
+
+      if (orbiter.ttl <= 0) {
+        exhibitRuntime.orbiters[oi] = createExhibitOrbiter(width, height);
+        continue;
+      }
+
+      var orbitFadeIn = Math.min(1, orbiter.life * 1.5);
+      var orbitFadeOut = Math.min(1, (orbiter.ttl / Math.max(1, orbiter.ttlMax)) * 1.9);
+      var orbitAlpha = orbiter.alpha * orbitFadeIn * orbitFadeOut;
+      if (orbitAlpha <= 0.01) {
+        continue;
+      }
+
+      var orbitX = orbiter.baseX + Math.cos(orbiter.angle) * orbiter.radiusX;
+      var orbitY = orbiter.baseY + Math.sin(orbiter.angle + orbiter.tilt) * orbiter.radiusY;
+      orbitX = clamp(orbitX, 2, width - 2);
+      orbitY = clamp(orbitY, height * 0.63, height - 2);
+
+      var orbitColor = sampleThemeGradient(clamp(0.36 + orbiter.tone * 0.46 + Math.sin(orbiter.angle * 0.7) * 0.12, 0, 1));
+
+      if (Number.isFinite(orbiter.px) && Number.isFinite(orbiter.py)) {
+        ctx.strokeStyle = 'rgba(' + orbitColor.r + ',' + orbitColor.g + ',' + orbitColor.b + ',' + (orbitAlpha * 0.34).toFixed(3) + ')';
+        ctx.lineWidth = Math.max(0.6, orbiter.size * 0.44);
+        ctx.beginPath();
+        ctx.moveTo(orbiter.px, orbiter.py);
+        ctx.lineTo(orbitX, orbitY);
+        ctx.stroke();
+      }
+
+      ctx.fillStyle = 'rgba(' + orbitColor.r + ',' + orbitColor.g + ',' + orbitColor.b + ',' + orbitAlpha.toFixed(3) + ')';
+      ctx.beginPath();
+      ctx.arc(orbitX, orbitY, orbiter.size, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.fillStyle = 'rgba(236,245,255,' + (orbitAlpha * 0.46).toFixed(3) + ')';
+      ctx.beginPath();
+      ctx.arc(orbitX, orbitY, Math.max(0.5, orbiter.size * 0.45), 0, Math.PI * 2);
+      ctx.fill();
+
+      orbiter.px = orbitX;
+      orbiter.py = orbitY;
     }
   }
 
@@ -2147,9 +2308,15 @@
       window.cancelAnimationFrame(exhibitRuntime.rafId);
     }
 
-    function loop() {
-      renderExhibitFrame();
-      renderFocusFlowFrame();
+    var minFrameGapMs = 1000 / 50;
+    var lastFrameTs = 0;
+
+    function loop(now) {
+      if (!lastFrameTs || now - lastFrameTs >= minFrameGapMs) {
+        lastFrameTs = now;
+        renderExhibitFrame();
+        renderFocusFlowFrame();
+      }
       exhibitRuntime.rafId = window.requestAnimationFrame(loop);
     }
 
@@ -2175,8 +2342,9 @@
       exhibitRuntime.canvas = canvas;
       exhibitRuntime.ctx = canvas.getContext('2d');
       exhibitRuntime.moveHandler = function (event) {
-        exhibitRuntime.mouseX = event.clientX - exhibitRuntime.pointerLeft;
-        exhibitRuntime.mouseY = event.clientY - exhibitRuntime.pointerTop;
+        var scale = Math.max(1, exhibitRuntime.dpr || window.devicePixelRatio || 1);
+        exhibitRuntime.mouseX = (event.clientX - exhibitRuntime.pointerLeft) * scale;
+        exhibitRuntime.mouseY = (event.clientY - exhibitRuntime.pointerTop) * scale;
       };
       exhibitRuntime.leaveHandler = function () {
         exhibitRuntime.mouseX = -9999;
@@ -2202,22 +2370,14 @@
       canvas.style.width = rect.width + 'px';
       canvas.style.height = rect.height + 'px';
       exhibitRuntime.slides = [];
+      exhibitRuntime.orbiters = [];
     }
 
     if (!exhibitRuntime.slides.length) {
       exhibitRuntime.loadToken += 1;
       var loadToken = exhibitRuntime.loadToken;
       Promise.all(EXHIBIT_IMAGE_SOURCES.map(function (src) {
-        return new Promise(function (resolve) {
-          var img = new Image();
-          img.onload = function () {
-            resolve(img);
-          };
-          img.onerror = function () {
-            resolve(null);
-          };
-          img.src = encodeURI(src);
-        });
+        return getCachedExhibitImage(src);
       })).then(function (images) {
         if (loadToken !== exhibitRuntime.loadToken) {
           return;
@@ -2280,10 +2440,13 @@
     if (!exhibitRuntime.particles.length && exhibitRuntime.slides.length) {
       applyExhibitSlide(exhibitRuntime.slideIndex);
     }
-    restartExhibitTimer();
+    if (!exhibitRuntime.timerId) {
+      restartExhibitTimer();
+    }
   }
 
   function applyShellChrome() {
+    applyLayoutVars();
     refreshFloatingTitle();
     appRoot.classList.toggle('theme-dark', state.theme === 'dark');
     appRoot.classList.toggle('theme-light', state.theme !== 'dark');
@@ -2306,7 +2469,6 @@
       var backdropSrc = state.theme === 'dark' ? THEME_ASSETS.darkBackdropVideo : THEME_ASSETS.lightBackdropVideo;
       if (backdropVideo.getAttribute('src') !== backdropSrc) {
         backdropVideo.setAttribute('src', backdropSrc);
-        state.wheelScaleBase = null;
         backdropVideo.load();
       }
       if (!backdropVideo.dataset.anchorBound) {
@@ -2324,9 +2486,12 @@
     updateWheelAnchorFromBackdrop();
 
     if (state.hideUiForBackdrop) {
-      syncCultureExhibit();
-      syncExhibitSelectorUi();
+      scheduleCultureExhibitSync();
     } else {
+      if (state.cultureSyncRaf) {
+        window.cancelAnimationFrame(state.cultureSyncRaf);
+        state.cultureSyncRaf = 0;
+      }
       teardownCultureExhibit();
     }
 
@@ -2373,7 +2538,7 @@
         state.backdropRevealTimer = window.setTimeout(function () {
           state.backdropRevealing = false;
           applyShellChrome();
-        }, Math.max(450, floodDuration));
+        }, Math.max(260, floodDuration));
       });
     });
   }
@@ -2593,21 +2758,17 @@
   function applyBackdropViewMode(viewModeKey, usePushState) {
     var normalizedMode = normalizeViewModeKey(viewModeKey);
     var toFocusMode = normalizedMode === VIEW_MODE_INDEX;
-    if (toFocusMode) {
-      state.wheelAnchorLock = null;
-      state.wheelAnchorLockUntil = 0;
-      state.anchorEntryGuardUntil = Date.now() + 2600;
-      startAnchorFreeze(true);
-      updateWheelAnchorFromBackdrop(true);
-      hideWheelInstant();
-    }
 
     state.backdropExpanded = toFocusMode;
     state.hideUiForBackdrop = toFocusMode;
 
+    if (toFocusMode) {
+      hideWheelInstant();
+      startAnchorFreeze(true);
+      updateWheelAnchorFromBackdrop(true);
+    }
+
     if (!toFocusMode) {
-      state.wheelAnchorLock = null;
-      state.wheelAnchorLockUntil = 0;
       hideWheelInstant();
       startAnchorFreeze(true);
       var slotIndex = findWheelSlotIndexByKey(normalizedMode);
@@ -2621,12 +2782,14 @@
 
     state.showFloatingTitle = false;
     state.backdropTransitioning = true;
+    applyLayoutVars();
+    updateWheelFlyOffsetVars();
     renderMain();
 
     if (toFocusMode) {
       window.requestAnimationFrame(function () {
         updateWheelAnchorFromBackdrop();
-        syncCultureExhibit();
+        scheduleCultureExhibitSync();
       });
     }
 
@@ -2648,19 +2811,15 @@
     exhibitRuntime.particles = [];
     exhibitRuntime.loadToken += 1;
     hideWheelInstant();
-    if (state.hideUiForBackdrop) {
-      state.wheelAnchorLock = null;
-      state.wheelAnchorLockUntil = 0;
-      state.anchorEntryGuardUntil = Date.now() + 2200;
-    }
     startAnchorFreeze(true);
     state.showFloatingTitle = false;
     state.backdropTransitioning = true;
     updateWheelAnchorFromBackdrop(true);
+    updateWheelFlyOffsetVars();
     renderMain();
     if (state.hideUiForBackdrop) {
       window.requestAnimationFrame(function () {
-        syncCultureExhibit();
+        scheduleCultureExhibitSync();
       });
     }
     if (state.backdropTransitionTimer) {
@@ -2749,6 +2908,16 @@
       componentNameNode.textContent = getComponentDisplayNameBySlot(getActiveWheelSlot());
     }
     syncQuickSidebarUi();
+  }
+
+  function scheduleWheelUiSync() {
+    if (state.wheelUiRaf) {
+      return;
+    }
+    state.wheelUiRaf = window.requestAnimationFrame(function () {
+      state.wheelUiRaf = 0;
+      syncComponentWheelUi();
+    });
   }
 
   function updateWheelHoverFx(event) {
@@ -2939,8 +3108,8 @@
       + '</view>'
       + '</view>'
       + '<button type="button" class="' + triggerClass + '" data-action="wheel-trigger">点击选择组件</button>'
-      + '<view class="' + collapseBridgeClass + '">' + collapseButtonMarkup + '</view>'
-      + '<view class="' + wheelClass + '">'
+      + '<view class="' + collapseBridgeClass + '" data-layout-key="bridge">' + collapseButtonMarkup + '</view>'
+      + '<view class="' + wheelClass + '" data-layout-key="wheel">'
       + '<view class="revolver-module-panel">'
       + '<text class="revolver-module-kicker">组件</text>'
       + '<text id="componentWheelCurrentName" class="revolver-module-current" data-action="wheel-enter">' + escapeHtml(currentComponentDisplayName) + '</text>'
@@ -2955,9 +3124,8 @@
       + '</view>'
       + '</view>'
       + '</view>'
-      + '<view id="cultureExhibitZone" class="' + exhibitClass + '"><canvas id="cultureExhibitCanvas" class="culture-exhibit-canvas"></canvas></view>'
-      + '<view id="exhibitSelector" class="' + exhibitSelectorClass + '" data-exhibit-drag="true">' + buildExhibitSelectorHtml() + '</view>'
-      + '<canvas id="focusFlowCanvas" class="' + flowCanvasClass + '"></canvas>'
+      + '<view id="cultureExhibitZone" class="' + exhibitClass + '" data-layout-key="exhibit"><canvas id="cultureExhibitCanvas" class="culture-exhibit-canvas"></canvas></view>'
+      + '<canvas id="focusFlowCanvas" class="' + flowCanvasClass + '" data-layout-key="flow"></canvas>'
 
       + '<view class="' + columnsClass + '">'
       + '<view class="lab-main-column">'
@@ -3064,7 +3232,6 @@
     syncRangeTrackFill(contentRoot);
     applyShellChrome();
     syncComponentWheelUi();
-  syncExhibitSelectorUi();
     scheduleFloatingTitleObstructionCheck();
 
     renderCharts();
@@ -3333,9 +3500,12 @@
       var pointerAngle = getPointerAngle(wheelDrag.centerX, wheelDrag.centerY, event.clientX, event.clientY);
       var delta = pointerAngle - wheelDrag.startPointerAngle;
       state.componentWheelAngle = normalizeWheelAngle(wheelDrag.startWheelAngle + delta);
-      state.componentWheelIndex = getWheelIndexByAngle(state.componentWheelAngle);
-      updateComponentHintBySlot(getActiveWheelSlot());
-      syncComponentWheelUi();
+      var nextWheelIndex = getWheelIndexByAngle(state.componentWheelAngle);
+      if (nextWheelIndex !== state.componentWheelIndex) {
+        state.componentWheelIndex = nextWheelIndex;
+        updateComponentHintBySlot(getActiveWheelSlot());
+      }
+      scheduleWheelUiSync();
       return;
     }
 
@@ -3531,9 +3701,7 @@
     }
 
     if (action === 'toggle-culture-showcase') {
-      state.cultureShowcaseCollapsed = !state.cultureShowcaseCollapsed;
-      renderMain();
-      applyShellChrome();
+      setCultureShowcaseCollapsed(!state.cultureShowcaseCollapsed);
       return;
     }
 
@@ -3677,7 +3845,7 @@
       updateWheelTriggerProximity(state.mouseX, state.mouseY);
     }
     if (state.hideUiForBackdrop) {
-      syncCultureExhibit();
+      scheduleCultureExhibitSync();
     }
   });
   window.addEventListener('scroll', function () {
@@ -3702,11 +3870,11 @@
         state.componentWheelAngle = normalizeWheelAngle(-initialSlotIndex * 60);
         updateComponentHintBySlot(COMPONENT_WHEEL_SLOTS[initialSlotIndex]);
       }
-    } else {
-      state.wheelAnchorLock = null;
-      state.wheelAnchorLockUntil = 0;
-      state.anchorEntryGuardUntil = Date.now() + 2600;
     }
+    state.anchorReady = true;
+    state.anchorFreezePending = false;
+    state.anchorRebuild = false;
+    applyLayoutVars();
     hideWheelInstant();
     updateWheelAnchorFromBackdrop(true);
     startAnchorFreeze(true);
